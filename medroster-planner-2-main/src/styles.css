@@ -1,0 +1,190 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-ink: var(--ink);
+
+  --color-shift-morning: var(--shift-morning);
+  --color-shift-evening: var(--shift-evening);
+  --color-shift-night: var(--shift-night);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --shadow-soft: 0 4px 12px -2px oklch(0.4 0.04 60 / 0.08), 0 2px 4px -1px oklch(0.4 0.04 60 / 0.04);
+  --shadow-warm: 0 10px 30px -8px oklch(0.5 0.08 60 / 0.12), 0 4px 8px -2px oklch(0.5 0.08 60 / 0.06);
+}
+
+:root {
+  --radius: 1rem;
+
+  /* MedRoster palette */
+  --background: oklch(0.975 0.012 75);          /* #FAF7F2 warm white */
+  --foreground: oklch(0.27 0.025 295);           /* #2E2A38 ink */
+  --ink: oklch(0.27 0.025 295);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.27 0.025 295);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.27 0.025 295);
+
+  --primary: oklch(0.62 0.11 255);               /* #4F86C6 soft blue */
+  --primary-foreground: oklch(0.99 0 0);
+
+  --secondary: oklch(0.94 0.02 290);
+  --secondary-foreground: oklch(0.27 0.025 295);
+
+  --muted: oklch(0.95 0.008 80);
+  --muted-foreground: oklch(0.48 0.02 285);      /* #6E6B7A */
+
+  --accent: oklch(0.66 0.11 295);                /* #8E83D6 soft purple */
+  --accent-foreground: oklch(0.99 0 0);
+
+  --success: oklch(0.66 0.12 155);               /* #4FAE82 */
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.75 0.13 60);                /* #E8A458 */
+  --warning-foreground: oklch(0.25 0.04 60);
+  --destructive: oklch(0.65 0.15 22);            /* #DD7373 */
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --border: oklch(0.92 0.01 75);
+  --input: oklch(0.92 0.01 75);
+  --ring: oklch(0.62 0.11 255);
+
+  /* Shift identity */
+  --shift-morning: oklch(0.78 0.13 80);          /* warm gold */
+  --shift-evening: oklch(0.7 0.12 35);           /* sunset amber-purple */
+  --shift-night: oklch(0.5 0.09 275);            /* deep soft indigo */
+
+  --chart-1: oklch(0.62 0.11 255);
+  --chart-2: oklch(0.66 0.11 295);
+  --chart-3: oklch(0.66 0.12 155);
+  --chart-4: oklch(0.75 0.13 60);
+  --chart-5: oklch(0.65 0.15 22);
+
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.27 0.025 295);
+  --sidebar-primary: oklch(0.62 0.11 255);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.96 0.012 255);
+  --sidebar-accent-foreground: oklch(0.62 0.11 255);
+  --sidebar-border: oklch(0.93 0.01 75);
+  --sidebar-ring: oklch(0.62 0.11 255);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html, body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+@utility font-mono-data {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+}
+
+@utility shift-morning-tint {
+  background-color: color-mix(in oklab, var(--shift-morning) 14%, transparent);
+  color: oklch(0.45 0.1 75);
+  border: 1px solid color-mix(in oklab, var(--shift-morning) 30%, transparent);
+}
+@utility shift-evening-tint {
+  background-color: color-mix(in oklab, var(--shift-evening) 14%, transparent);
+  color: oklch(0.45 0.1 35);
+  border: 1px solid color-mix(in oklab, var(--shift-evening) 30%, transparent);
+}
+@utility shift-night-tint {
+  background-color: color-mix(in oklab, var(--shift-night) 16%, transparent);
+  color: oklch(0.4 0.09 275);
+  border: 1px solid color-mix(in oklab, var(--shift-night) 32%, transparent);
+}
+
+@utility status-success-tint {
+  background-color: color-mix(in oklab, var(--success) 12%, transparent);
+  color: oklch(0.45 0.1 155);
+}
+@utility status-warning-tint {
+  background-color: color-mix(in oklab, var(--warning) 16%, transparent);
+  color: oklch(0.45 0.1 60);
+}
+@utility status-danger-tint {
+  background-color: color-mix(in oklab, var(--destructive) 14%, transparent);
+  color: oklch(0.45 0.13 22);
+}
+@utility status-info-tint {
+  background-color: color-mix(in oklab, var(--primary) 12%, transparent);
+  color: oklch(0.42 0.1 255);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
