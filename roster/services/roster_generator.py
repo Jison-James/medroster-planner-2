@@ -52,6 +52,13 @@ class RosterGeneratorService:
             # Track who is already assigned on this day to avoid double-bookings
             assigned_today = set()
 
+            # Find staff who are already assigned to shifts on this day in any other roster
+            already_assigned_staff_ids = set(
+                RosterAssignment.objects.filter(
+                    shift_date=current_day
+                ).values_list('staff_id', flat=True)
+            )
+
             for s_type in ['morning', 'evening', 'night']:
                 template = templates.get(s_type)
                 if not template:
@@ -63,14 +70,17 @@ class RosterGeneratorService:
                 for role_name, quota in reqs.items():
                     db_role = self._normalize_role_name(role_name)
 
-                    # Find eligible staff members matching clinical role who aren't on leave or double-booked
+                    # Find eligible staff members matching clinical role who aren't on leave, double-booked today in this run, or already assigned in the database
                     eligible_staff = staff_profiles.filter(
                         role=db_role
                     ).exclude(
                         id__in=on_leave_staff_ids
                     ).exclude(
                         id__in=assigned_today
+                    ).exclude(
+                        id__in=already_assigned_staff_ids
                     )
+
 
                     # Greedy assignment
                     assigned_count = 0
