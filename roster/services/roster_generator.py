@@ -102,17 +102,18 @@ class RosterGeneratorService:
                         assigned_today.add(staff.id)
                         assigned_count += 1
 
-            current_day += timedelta(days=1)
+                    # If quota could not be met due to lack of staff or leaves, create an actual Understaffed_Shift conflict
+                    if assigned_count < quota:
+                        Conflict.objects.create(
+                            roster=roster,
+                            conflict_type='Understaffed_Shift',
+                            message=f"Understaffed shift: Assigned {assigned_count} out of {quota} required {role_name}s for {s_type.capitalize()} shift.",
+                            severity='Warning',
+                            date=current_day,
+                            status='Open'
+                        )
 
-        # Generate a log conflict message for feedback
-        Conflict.objects.create(
-            roster=roster,
-            conflict_type='Understaffed_Shift' if len(created_shifts) < 10 else 'Double_Booking',
-            message=f"Roster successfully generated. Created {len(created_shifts)} assignments.",
-            severity='Info',
-            date=start_date,
-            status='Open'
-        )
+            current_day += timedelta(days=1)
 
         return roster, created_shifts
 
