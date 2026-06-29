@@ -205,16 +205,40 @@ class ConflictSerializer(serializers.ModelSerializer):
     rosterId = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     staffId = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     type = serializers.CharField(source='conflict_type')
-    shiftIds = serializers.JSONField(source='shift_ids', required=False, default=list)
+    expectedValue = serializers.CharField(source='expected_value', required=False, allow_null=True, allow_blank=True)
+    actualValue = serializers.CharField(source='actual_value', required=False, allow_null=True, allow_blank=True)
+    suggestedResolution = serializers.CharField(source='suggested_resolution', required=False)
+    planningBoardRedirect = serializers.CharField(source='planning_board_redirect', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    resolvedAt = serializers.DateTimeField(source='resolved_at', read_only=True)
+    resolvedBy = serializers.SerializerMethodField(read_only=True)
+    ignoredBy = serializers.SerializerMethodField(read_only=True)
+    ignoredAt = serializers.DateTimeField(source='ignored_at', read_only=True)
+    optionalNote = serializers.CharField(source='optional_note', required=False, allow_null=True, allow_blank=True)
+    message = serializers.CharField(source='description', read_only=True)
 
     class Meta:
         model = Conflict
-        fields = ['id', 'rosterId', 'staffId', 'type', 'message', 'severity', 'shiftIds', 'date', 'status']
+        fields = [
+            'id', 'rosterId', 'staffId', 'type', 'message', 'severity', 'date', 'status',
+            'title', 'location', 'description', 'reason', 'expectedValue', 'actualValue',
+            'suggestedResolution', 'planningBoardRedirect', 'ignored', 'resolved',
+            'createdAt', 'updatedAt', 'resolvedAt', 'resolvedBy', 'ignoredBy', 'ignoredAt', 'optionalNote',
+            'shift'
+        ]
+
+    def get_resolvedBy(self, obj):
+        return obj.resolved_by.full_name or obj.resolved_by.email if obj.resolved_by else None
+
+    def get_ignoredBy(self, obj):
+        return obj.ignored_by.full_name or obj.ignored_by.email if obj.ignored_by else None
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep['rosterId'] = instance.roster_id
-        rep['staffId'] = instance.staff.user_id if instance.staff else None
+        rep['staffId'] = instance.employee.user_id if instance.employee else None
+        rep['shift'] = instance.shift.shift_type if instance.shift else None
         return rep
 
     def create(self, validated_data):
@@ -223,7 +247,7 @@ class ConflictSerializer(serializers.ModelSerializer):
         if roster_id:
             validated_data['roster'] = Roster.objects.get(id=roster_id)
         if staff_id:
-            validated_data['staff'] = StaffProfile.objects.get(user_id=staff_id)
+            validated_data['employee'] = StaffProfile.objects.get(user_id=staff_id)
         return super().create(validated_data)
 
 

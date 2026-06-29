@@ -97,10 +97,11 @@ export const conflictService = {
       return [];
     }
   },
-  act: async (id: string, action: "Resolve" | "Reassign" | "Ignore") => {
+  act: async (id: string, action: "Resolve" | "Reassign" | "Ignore", data?: any) => {
     const endpointAction = action === 'Ignore' ? 'ignore' : 'resolve';
     return await apiCall(`/roster/conflicts/${id}/${endpointAction}/`, {
       method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
     });
   }
 };

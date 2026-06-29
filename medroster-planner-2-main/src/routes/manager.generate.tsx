@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { rosterService } from "@/services";
+import { useApp } from "@/lib/app-context";
+import { rosterService, conflictService } from "@/services";
 import { toast } from "sonner";
 import { ShiftBadge, shiftMeta } from "@/components/shared/ShiftBadge";
 import { Check, Sparkles, ArrowLeft, ArrowRight } from "lucide-react";
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/manager/generate")({ component: GenerateR
 const steps = ["Select period", "Staff requirements", "Generate", "Preview", "Publish"];
 
 function GenerateRoster() {
+  const { staff, setRoster, setConflicts } = useApp();
   const [step, setStep] = useState(0);
   const [period, setPeriod] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
@@ -30,18 +32,44 @@ function GenerateRoster() {
   const [progress, setProgress] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [published, setPublished] = useState(false);
+  const [generatedRoster, setGeneratedRoster] = useState<any>(null);
+  const [generatedRosterShifts, setGeneratedRosterShifts] = useState<any[]>([]);
 
   const generate = async () => {
     setGenerating(true); setProgress(0);
     const interval = setInterval(() => setProgress((p) => Math.min(95, p + 9)), 100);
-    await rosterService.generate();
-    clearInterval(interval); setProgress(100);
-    setTimeout(() => { setGenerating(false); setStep(3); }, 300);
+    try {
+      const res = await rosterService.generate({ startDate: start, endDate: end, requirements: req });
+      setGeneratedRoster(res.roster);
+      setGeneratedRosterShifts(res.shifts || []);
+      clearInterval(interval); setProgress(100);
+      setTimeout(() => { setGenerating(false); setStep(3); }, 300);
+    } catch (err) {
+      clearInterval(interval);
+      setGenerating(false);
+      toast.error("Generation failed");
+    }
   };
   const publish = async () => {
-    await rosterService.publish();
-    setPublished(true);
-    toast.success("Roster published");
+    if (!generatedRoster) {
+      toast.error("No generated roster to publish");
+      return;
+    }
+    try {
+      await rosterService.publish(generatedRoster.id);
+      
+      // Refresh global context
+      const shifts = await rosterService.listShifts();
+      setRoster(shifts);
+      const conflictsList = await conflictService.list();
+      setConflicts(conflictsList);
+
+      setPublished(true);
+      toast.success("Roster published");
+    } catch (err) {
+      console.error(err);
+      toast.error("Publishing failed");
+    }
   };
 
   return (
@@ -136,14 +164,44 @@ function GenerateRoster() {
                     {(["morning","evening","night"] as ShiftType[]).map((s) => <th key={s} className="p-2 text-left text-xs text-muted-foreground">{shiftMeta[s].label}</th>)}
                   </tr></thead>
                   <tbody>
-                    {Array.from({ length: 7 }).map((_, d) => (
-                      <tr key={d} className="border-t border-border">
-                        <td className="p-2 font-mono-data text-xs">{new Date(Date.now() + d*864e5).toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}</td>
-                        {(["morning","evening","night"] as ShiftType[]).map((s) => (
-                          <td key={s} className="p-2"><ShiftBadge shift={s} /> <span className="ml-1 text-xs text-muted-foreground">{req[s].Doctors + req[s].Nurses + req[s].Staff} assigned</span></td>
-                        ))}
-                      </tr>
-                    ))}
+                    {generatedRosterShifts.length === 0 ? (
+                      Array.from({ length: 7 }).map((_, d) => (
+                        <tr key={d} className="border-t border-border">
+                          <td className="p-2 font-mono-data text-xs">{new Date(Date.now() + d*864e5).toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}</td>
+                          {(["morning","evening","night"] as ShiftType[]).map((s) => (
+                            <td key={s} className="p-2"><ShiftBadge shift={s} /> <span className="ml-1 text-xs text-muted-foreground">{req[s].Doctors + req[s].Nurses + req[s].Staff} assigned</span></td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : (
+                      Array.from(new Set(generatedRosterShifts.map((s: any) => s.date))).sort().map((dateStr: any) => (
+                        <tr key={dateStr} className="border-t border-border">
+                          <td className="p-2 font-mono-data text-xs">{new Date(dateStr).toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}</td>
+                          {(["morning","evening","night"] as ShiftType[]).map((s) => {
+                            const list = generatedRosterShifts.filter((x: any) => x.date === dateStr && x.shift === s);
+                            return (
+                              <td key={s} className="p-2">
+                                <div className="space-y-1">
+                                  <ShiftBadge shift={s} />
+                                  <div className="flex flex-wrap gap-1 max-w-[180px]">
+                                    {list.map((e: any) => {
+                                      const member = staff.find((x) => x.id === e.staffId);
+                                      if (!member) return null;
+                                      return (
+                                        <span key={e.id} className="inline-flex items-center rounded bg-muted/60 px-1 py-0.5 text-[9px] font-medium text-foreground">
+                                          {member.name.split(" ")[0]}
+                                        </span>
+                                      );
+                                    })}
+                                    {list.length === 0 && <span className="text-[10px] text-muted-foreground">Empty</span>}
+                                  </div>
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

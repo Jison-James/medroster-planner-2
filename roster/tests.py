@@ -4,7 +4,7 @@ from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from roster.models import Roster, StaffProfile, ShiftTemplate, ClinicalRole, ShiftType, ActivityLog, Conflict, RosterAssignment, RosterRule, LeaveRequest, Availability
 from roster.services.scheduler import SchedulerService
-from roster.services.scheduler.conflict_engine import ConflictEngine
+from roster.services.conflict_engine.engine import ConflictEngineService
 from datetime import date, timedelta
 
 User = get_user_model()
@@ -70,7 +70,8 @@ class RosterAPITests(APITestCase):
         reqs = {'morning': {'Doctor': 1}}
         roster, shifts = service.generate(date(2026, 7, 13), date(2026, 7, 13), reqs)
         self.assertEqual(len(shifts), 0)
-        self.assertEqual(Conflict.objects.filter(conflict_type='Understaffed_Shift').count(), 1)
+        ConflictEngineService().run(roster)
+        self.assertEqual(Conflict.objects.filter(conflict_type='UNDERSTAFFED_SHIFT').count(), 1)
 
     def test_availability_validation(self):
         staff = self._create_staff('doc2@med.com', ClinicalRole.DOCTOR)
@@ -184,10 +185,10 @@ class RosterAPITests(APITestCase):
             roster=roster, staff=n1, shift=self.morning_temp, shift_date=date(2026, 7, 13),
             start_time=time(8, 0, 0), end_time=time(16, 0, 0), duration_hours=8.0
         )
-        engine = ConflictEngine()
-        conflicts = engine.detect_conflicts(roster, [s1, s2])
-        db_conflicts = [c for c in conflicts if c.conflict_type == 'Double_Booking']
-        self.assertGreaterEqual(len(db_conflicts), 1)
+        engine = ConflictEngineService()
+        engine.run(roster)
+        db_conflicts = Conflict.objects.filter(roster=roster, conflict_type='DOUBLE_BOOKING')
+        self.assertGreaterEqual(db_conflicts.count(), 1)
 
     def test_understaffed_conflict(self):
         # 0 nurses available
@@ -195,7 +196,8 @@ class RosterAPITests(APITestCase):
         reqs = {'morning': {'Nurse': 1}}
         roster, shifts = service.generate(date(2026, 7, 13), date(2026, 7, 13), reqs)
         self.assertEqual(len(shifts), 0)
-        self.assertEqual(Conflict.objects.filter(conflict_type='Understaffed_Shift').count(), 1)
+        ConflictEngineService().run(roster)
+        self.assertEqual(Conflict.objects.filter(conflict_type='UNDERSTAFFED_SHIFT').count(), 1)
 
     def test_transaction_rollback(self):
         # In Django test cases, testing transaction rollback directly is tricky 

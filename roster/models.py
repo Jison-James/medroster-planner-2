@@ -52,20 +52,21 @@ class ShiftStatus(models.TextChoices):
     SWAPPED = 'Swapped', 'Swapped'
 
 class ConflictType(models.TextChoices):
-    LEAVE_CONFLICT = 'Leave_Conflict', 'Leave Conflict'
-    DOUBLE_BOOKING = 'Double_Booking', 'Double Booking'
-    OVERTIME_VIOLATION = 'Overtime_Violation', 'Overtime Violation'
-    UNDERSTAFFED_SHIFT = 'Understaffed_Shift', 'Understaffed Shift'
-    INSUFFICIENT_REST = 'Insufficient_Rest', 'Insufficient Rest'
-    AVAILABILITY_VIOLATION = 'Availability_Violation', 'Availability Violation'
-    OVERSTAFFED_SHIFT = 'Overstaffed_Shift', 'Overstaffed Shift'
-    QUALIFICATION_MISMATCH = 'Qualification_Mismatch', 'Qualification Mismatch'
-    DEPARTMENT_CONSTRAINT_VIOLATION = 'Department_Constraint_Violation', 'Department Constraint Violation'
+    DOUBLE_BOOKING = 'DOUBLE_BOOKING', 'Double Booking'
+    SHIFT_OVERLAP = 'SHIFT_OVERLAP', 'Shift Overlap'
+    LEAVE_VIOLATION = 'LEAVE_VIOLATION', 'Leave Violation'
+    AVAILABILITY_VIOLATION = 'AVAILABILITY_VIOLATION', 'Availability Violation'
+    REST_RULE_VIOLATION = 'REST_RULE_VIOLATION', 'Rest Rule Violation'
+    OVERTIME_LIMIT_EXCEEDED = 'OVERTIME_LIMIT_EXCEEDED', 'Overtime Limit Exceeded'
+    UNDERSTAFFED_SHIFT = 'UNDERSTAFFED_SHIFT', 'Understaffed Shift'
+    OVERSTAFFED_SHIFT = 'OVERSTAFFED_SHIFT', 'Overstaffed Shift'
+    MAX_CONSECUTIVE_DAYS_EXCEEDED = 'MAX_CONSECUTIVE_DAYS_EXCEEDED', 'Max Consecutive Days Exceeded'
+    MAX_NIGHT_SHIFT_LIMIT_EXCEEDED = 'MAX_NIGHT_SHIFT_LIMIT_EXCEEDED', 'Max Night Shift Limit Exceeded'
 
 class ConflictSeverity(models.TextChoices):
     CRITICAL = 'Critical', 'Critical'
-    WARNING = 'Warning', 'Warning'
-    INFO = 'Info', 'Info'
+    HIGH = 'High', 'High'
+    MEDIUM = 'Medium', 'Medium'
 
 class ConflictStatus(models.TextChoices):
     OPEN = 'Open', 'Open'
@@ -212,6 +213,10 @@ class Roster(models.Model):
     shift = models.CharField(max_length=50, null=True, blank=True)
     staff = models.ForeignKey(StaffProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_rosters')
     published = models.BooleanField(default=False)
+    requirements = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    published_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='published_rosters')
 
     class Meta:
         db_table = 'rosters'
@@ -284,16 +289,34 @@ class SwapRequest(models.Model):
 class Conflict(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     roster = models.ForeignKey(Roster, on_delete=models.CASCADE, null=True, blank=True, db_column='roster_id', related_name='conflicts')
-    staff = models.ForeignKey(StaffProfile, on_delete=models.SET_NULL, null=True, blank=True, db_column='staff_id', related_name='conflicts')
+    employee = models.ForeignKey(StaffProfile, on_delete=models.SET_NULL, null=True, blank=True, db_column='staff_id', related_name='conflicts')
+    shift = models.ForeignKey(ShiftTemplate, on_delete=models.SET_NULL, null=True, blank=True, db_column='shift_template_id', related_name='conflicts')
     conflict_type = models.CharField(max_length=50, choices=ConflictType.choices)
-    message = models.TextField()
-    severity = models.CharField(max_length=20, choices=ConflictSeverity.choices, default=ConflictSeverity.WARNING)
-    shift_ids = models.JSONField(default=list)
-    date = models.DateField(null=True, blank=True)
+    severity = models.CharField(max_length=20, choices=ConflictSeverity.choices, default=ConflictSeverity.MEDIUM)
     status = models.CharField(max_length=20, choices=ConflictStatus.choices, default=ConflictStatus.OPEN)
     
-    # Target Architecture fields
+    title = models.CharField(max_length=255, default='')
+    location = models.CharField(max_length=255, default='')
+    description = models.TextField(default='')
+    reason = models.TextField(default='')
+    expected_value = models.CharField(max_length=255, default='', null=True, blank=True)
+    actual_value = models.CharField(max_length=255, default='', null=True, blank=True)
+    suggested_resolution = models.TextField(default='')
+    planning_board_redirect = models.TextField(default='')
+    
+    ignored = models.BooleanField(default=False)
     resolved = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_conflicts')
+    
+    ignored_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='ignored_conflicts')
+    ignored_at = models.DateTimeField(null=True, blank=True)
+    optional_note = models.TextField(null=True, blank=True)
+
+    date = models.DateField(null=True, blank=True)
 
     class Meta:
         db_table = 'conflicts'
@@ -304,10 +327,15 @@ class Conflict(models.Model):
 
     def save(self, *args, **kwargs):
         self.resolved = (self.status == ConflictStatus.RESOLVED)
+        self.ignored = (self.status == ConflictStatus.IGNORED)
+        if self.resolved and not self.resolved_at:
+            self.resolved_at = timezone.now()
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.conflict_type} on {self.date}"
+
+
 
 
 class Notification(models.Model):
@@ -358,6 +386,8 @@ def create_or_update_staff_profile(sender, instance, created, **kwargs):
     """
     Ensures that every User has a corresponding StaffProfile for scheduling.
     """
+    if kwargs.get('raw'):
+        return
     staff_profile, created_profile = StaffProfile.objects.get_or_create(
         user=instance,
         defaults={

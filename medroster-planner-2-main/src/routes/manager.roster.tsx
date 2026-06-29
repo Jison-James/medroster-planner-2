@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp } from "@/lib/app-context";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/manager/roster")({ component: RosterViewer });
 
@@ -30,7 +32,25 @@ function RosterViewer() {
   const [shiftFilter, setShiftFilter] = useState("all");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  const today = new Date();
+  const [viewDate, setViewDate] = useState<Date>(new Date());
+
+  useEffect(() => {
+    if (roster.length > 0) {
+      toast.success(`Loaded ${roster.length} active assignments from PostgreSQL database`);
+      
+      // Auto-center view on the earliest roster date
+      try {
+        const dates = roster.map(r => new Date(r.date));
+        const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+        // Ensure it's a valid date
+        if (!isNaN(minDate.getTime())) {
+          setViewDate(minDate);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [roster]);
   const filter = (entries: typeof roster) => entries.filter((r) => {
     const s = staff.find((x) => x.id === r.staffId);
     if (!s) return false;
@@ -81,19 +101,25 @@ function RosterViewer() {
     <div>
       <PageHeader title="Roster viewer" description="See who's on duty across days, weeks, and months." />
       <Card className="mb-4 rounded-2xl">
-        <CardContent className="flex flex-wrap gap-3 p-4">
-          <Select value={staffFilter} onValueChange={setStaffFilter}>
-            <SelectTrigger className="w-48"><SelectValue placeholder="All staff" /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All staff</SelectItem>{staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={roleFilter} onValueChange={setRoleFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="All roles" /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All roles</SelectItem><SelectItem value="Doctor">Doctors</SelectItem><SelectItem value="Nurse">Nurses</SelectItem><SelectItem value="Support Staff">Support</SelectItem></SelectContent>
-          </Select>
-          <Select value={shiftFilter} onValueChange={setShiftFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="All shifts" /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All shifts</SelectItem><SelectItem value="morning">Morning</SelectItem><SelectItem value="evening">Evening</SelectItem><SelectItem value="night">Night</SelectItem></SelectContent>
-          </Select>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="flex flex-wrap gap-3">
+            <Select value={staffFilter} onValueChange={setStaffFilter}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="All staff" /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All staff</SelectItem>{staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-40"><SelectValue placeholder="All roles" /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All roles</SelectItem><SelectItem value="Doctor">Doctors</SelectItem><SelectItem value="Nurse">Nurses</SelectItem><SelectItem value="Support Staff">Support</SelectItem></SelectContent>
+            </Select>
+            <Select value={shiftFilter} onValueChange={setShiftFilter}>
+              <SelectTrigger className="w-40"><SelectValue placeholder="All shifts" /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All shifts</SelectItem><SelectItem value="morning">Morning</SelectItem><SelectItem value="evening">Evening</SelectItem><SelectItem value="night">Night</SelectItem></SelectContent>
+            </Select>
+          </div>
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 gap-1.5 py-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            PostgreSQL Database Active
+          </Badge>
         </CardContent>
       </Card>
 
@@ -103,14 +129,15 @@ function RosterViewer() {
         <TabsContent value="daily" className="mt-4">
           <div className="grid gap-3 md:grid-cols-3">
             {(["morning","evening","night"] as ShiftType[]).map((shift) => {
-              const entries = filter(roster.filter((r) => r.date === format(today, "yyyy-MM-dd") && r.shift === shift));
+              const entries = filter(roster.filter((r) => r.date === format(viewDate, "yyyy-MM-dd") && r.shift === shift));
               return (
                 <Card key={shift} className="rounded-2xl">
                   <CardContent className="p-4 space-y-3">
                     <ShiftBadge shift={shift} showTime />
                     {entries.length === 0 ? <p className="text-xs text-muted-foreground">Nobody assigned</p> :
                       entries.map((e) => {
-                        const s = staff.find((x) => x.id === e.staffId)!;
+                        const s = staff.find((x) => x.id === e.staffId);
+                        if (!s) return null;
                         return <div key={e.id} className="flex items-center gap-2">
                           <Avatar className="h-7 w-7"><AvatarFallback style={{ backgroundColor: s.avatarColor, color: "#fff" }} className="text-xs">{s.name.split(" ").map((n)=>n[0]).join("")}</AvatarFallback></Avatar>
                           <div className="min-w-0"><p className="truncate text-sm font-medium">{s.name}</p><p className="text-xs text-muted-foreground">{s.role}</p></div>
@@ -125,13 +152,13 @@ function RosterViewer() {
 
         <TabsContent value="weekly" className="mt-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-            {Array.from({ length: 7 }).map((_, i) => renderDay(addDays(startOfWeek(today, { weekStartsOn: 1 }), i)))}
+            {Array.from({ length: 7 }).map((_, i) => renderDay(addDays(startOfWeek(viewDate, { weekStartsOn: 1 }), i)))}
           </div>
         </TabsContent>
 
         <TabsContent value="monthly" className="mt-4">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-            {eachDayOfInterval({ start: startOfMonth(today), end: endOfMonth(today) }).map((d) => renderDay(d))}
+            {eachDayOfInterval({ start: startOfMonth(viewDate), end: endOfMonth(viewDate) }).map((d) => renderDay(d))}
           </div>
         </TabsContent>
       </Tabs>

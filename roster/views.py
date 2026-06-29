@@ -2,6 +2,7 @@ import csv
 from django.http import HttpResponse
 from datetime import datetime, timedelta
 from django.utils import timezone
+from django.db import transaction
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -135,9 +136,21 @@ class RosterViewSet(viewsets.ModelViewSet):
             except ValueError:
                 return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Clear any existing Draft rosters for the same period to allow clean rescheduling without constraint blocks
+        Roster.objects.filter(
+            start_date=start_date,
+            end_date=end_date,
+            status='Draft'
+        ).delete()
+
         # Delegate generation logic to Service
         service = SchedulerService()
         roster, created_shifts = service.generate(start_date, end_date, requirements)
+
+        # Run Conflict Engine AFTER saving the roster and assignments
+        from .services.conflict_engine.engine import ConflictEngineService
+        conflict_engine = ConflictEngineService()
+        conflict_engine.run(roster)
 
         # Log Activity
         ActivityLog.objects.create(
@@ -154,7 +167,18 @@ class RosterViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='publish', permission_classes=[IsManager])
     def publish_roster(self, request, pk=None):
         roster = self.get_object()
+        
+        # Delete any OTHER rosters for the same period that are already Published
+        # This will cascade delete their associated RosterAssignment and Conflict objects
+        Roster.objects.filter(
+            start_date=roster.start_date,
+            end_date=roster.end_date,
+            status='Published'
+        ).exclude(id=roster.id).delete()
+
         roster.status = 'Published'
+        roster.published_at = timezone.now()
+        roster.published_by = request.user
         roster.save()
 
         # Log Activity
@@ -213,9 +237,139 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_authenticated and user.role == 'manager':
-            return self.queryset
-        return self.queryset.filter(staff__user=user)
+        if not user or not user.is_authenticated:
+            return self.queryset.none()
+
+        roster_id = self.request.query_params.get('roster')
+        if roster_id:
+            qs = self.queryset.filter(roster_id=roster_id)
+        else:
+            from .models import Roster
+            latest_rosters = {}
+            for r in Roster.objects.filter(status='Published').order_by('created_at'):
+                latest_rosters[(r.start_date, r.end_date)] = r.id
+            active_roster_ids = list(latest_rosters.values())
+            qs = self.queryset.filter(roster_id__in=active_roster_ids)
+
+        if user.role == 'manager':
+            return qs
+        return qs.filter(staff__user=user)
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        # Support the frontend custom "assign" action format: {"entryId": "...", "pick": "..."}
+        entry_id = request.data.get('entryId')
+        pick = request.data.get('pick')
+        
+        if entry_id and pick:
+            try:
+                assignment = RosterAssignment.objects.get(id=entry_id)
+            except RosterAssignment.DoesNotExist:
+                return Response({'error': 'Assignment not found'}, status=404)
+                
+            from .models import ShiftTemplate
+            template = ShiftTemplate.objects.filter(shift_type=pick).first()
+            if not template:
+                return Response({'error': f'Shift template for {pick} not found'}, status=400)
+                
+            assignment.shift = template
+            assignment.start_time = template.start_time
+            assignment.end_time = template.end_time
+            assignment.save()
+            
+            self._revalidate_conflicts(assignment)
+            return Response(self.get_serializer(assignment).data)
+            
+        # Support drag-and-drop format: {"staffId": "...", "date": "...", "shift": "..."}
+        staff_id = request.data.get('staffId')
+        date_str = request.data.get('date')
+        shift_type = request.data.get('shift')
+        
+        if staff_id and date_str and shift_type:
+            from .models import StaffProfile, ShiftTemplate, Roster
+            try:
+                staff_member = StaffProfile.objects.get(user_id=staff_id)
+            except StaffProfile.DoesNotExist:
+                return Response({'error': 'Staff member not found'}, status=404)
+                
+            template = ShiftTemplate.objects.filter(shift_type=shift_type).first()
+            if not template:
+                return Response({'error': f'Shift template for {shift_type} not found'}, status=400)
+                
+            from datetime import datetime
+            try:
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({'error': 'Invalid date format'}, status=400)
+                
+            # Find active roster covering this date
+            roster = Roster.objects.filter(
+                start_date__lte=target_date,
+                end_date__gte=target_date
+            ).order_by('status', 'created_at').last()
+            
+            if not roster:
+                roster = Roster.objects.create(
+                    name=f"Roster ({target_date})",
+                    start_date=target_date,
+                    end_date=target_date,
+                    status='Draft'
+                )
+                
+            assignment = RosterAssignment.objects.filter(
+                roster=roster,
+                staff=staff_member,
+                shift_date=target_date
+            ).first()
+            
+            if assignment:
+                assignment.shift = template
+                assignment.start_time = template.start_time
+                assignment.end_time = template.end_time
+                assignment.save()
+            else:
+                assignment = RosterAssignment.objects.create(
+                    roster=roster,
+                    staff=staff_member,
+                    shift=template,
+                    shift_date=target_date,
+                    start_time=template.start_time,
+                    end_time=template.end_time,
+                    duration_hours=8.0,
+                    status='Scheduled' if roster.status == 'Published' else 'Draft'
+                )
+                
+            self._revalidate_conflicts(assignment)
+            return Response(self.get_serializer(assignment).data, status=201)
+            
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        assignment = serializer.save()
+        self._revalidate_conflicts(assignment)
+
+    def perform_update(self, serializer):
+        assignment = serializer.save()
+        self._revalidate_conflicts(assignment)
+
+    def perform_destroy(self, instance):
+        roster = instance.roster
+        date_val = instance.shift_date
+        shift_type = instance.shift.shift_type if instance.shift else 'custom'
+        instance.delete()
+        
+        from .services.conflict_engine.engine import ConflictEngineService
+        engine = ConflictEngineService()
+        engine.run_for_shift(roster, date_val, shift_type)
+
+    def _revalidate_conflicts(self, assignment):
+        roster = assignment.roster
+        date_val = assignment.shift_date
+        shift_type = assignment.shift.shift_type if assignment.shift else 'custom'
+        
+        from .services.conflict_engine.engine import ConflictEngineService
+        engine = ConflictEngineService()
+        engine.run_for_shift(roster, date_val, shift_type)
 
 
 class SwapRequestViewSet(viewsets.ModelViewSet):
@@ -290,21 +444,30 @@ class SwapRequestViewSet(viewsets.ModelViewSet):
 
 
 class ConflictViewSet(viewsets.ModelViewSet):
-    queryset = Conflict.objects.select_related('roster', 'staff__user').all()
+    queryset = Conflict.objects.select_related('roster', 'employee__user').all()
     serializer_class = ConflictSerializer
     permission_classes = [IsOwnerOrManager]
 
-    @action(detail=True, methods=['post'], permission_classes=[IsManager])
-    def resolve(self, request, pk=None):
-        conflict = self.get_object()
-        conflict.status = 'Resolved'
-        conflict.save()
-        return Response(self.get_serializer(conflict).data)
+    def get_queryset(self):
+        roster_id = self.request.query_params.get('roster')
+        if roster_id:
+            qs = self.queryset.filter(roster_id=roster_id)
+        else:
+            from .models import Roster
+            latest_rosters = {}
+            for r in Roster.objects.filter(status='Published').order_by('created_at'):
+                latest_rosters[(r.start_date, r.end_date)] = r.id
+            active_roster_ids = list(latest_rosters.values())
+            qs = self.queryset.filter(roster_id__in=active_roster_ids)
+        return qs
 
     @action(detail=True, methods=['post'], permission_classes=[IsManager])
     def ignore(self, request, pk=None):
         conflict = self.get_object()
         conflict.status = 'Ignored'
+        conflict.ignored_by = request.user
+        conflict.ignored_at = timezone.now()
+        conflict.optional_note = request.data.get('note', '') or request.data.get('optionalNote', '') or request.data.get('optional_note', '')
         conflict.save()
         return Response(self.get_serializer(conflict).data)
 
