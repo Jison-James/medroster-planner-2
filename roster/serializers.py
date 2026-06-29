@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
-    ShiftTemplate, RosterRules, Availability, LeaveRequest, 
-    Roster, RosterShift, ShiftSwapRequest, Conflict, Notification
+    ShiftTemplate, RosterRule, Availability, LeaveRequest, 
+    Roster, RosterAssignment, SwapRequest, Conflict, Notification, StaffProfile
 )
 
 class ShiftTemplateSerializer(serializers.ModelSerializer):
@@ -18,17 +18,17 @@ class RosterRulesSerializer(serializers.ModelSerializer):
     maxHoursPerDay = serializers.DecimalField(source='max_hours_per_day', max_digits=4, decimal_places=2)
     maxHoursPerWeek = serializers.DecimalField(source='max_hours_per_week', max_digits=5, decimal_places=2)
     maxHoursPerMonth = serializers.DecimalField(source='max_hours_per_month', max_digits=6, decimal_places=2)
-    maxConsecutiveDays = serializers.IntegerField(source='max_consecutive_working_days')
-    minRestHours = serializers.DecimalField(source='min_rest_hours_between_shifts', max_digits=4, decimal_places=2)
-    maxNightsPerWeek = serializers.IntegerField(source='max_night_shifts_per_week')
-    maxNightsPerMonth = serializers.IntegerField(source='max_night_shifts_per_month')
+    maxConsecutiveDays = serializers.IntegerField(source='max_consecutive_days')
+    minRestHours = serializers.DecimalField(source='minimum_rest_hours', max_digits=4, decimal_places=2)
+    maxNightsPerWeek = serializers.IntegerField(source='max_night_per_week')
+    maxNightsPerMonth = serializers.IntegerField(source='max_night_per_month')
     equalShiftDistribution = serializers.BooleanField(source='equal_shift_distribution')
     equalWeekendDistribution = serializers.BooleanField(source='equal_weekend_distribution')
     equalNightDistribution = serializers.BooleanField(source='equal_night_distribution')
     balanceWorkload = serializers.BooleanField(source='balance_workload')
 
     class Meta:
-        model = RosterRules
+        model = RosterRule
         fields = [
             'id', 'maxHoursPerDay', 'maxHoursPerWeek', 'maxHoursPerMonth', 
             'maxConsecutiveDays', 'minRestHours', 'maxNightsPerWeek', 
@@ -38,7 +38,7 @@ class RosterRulesSerializer(serializers.ModelSerializer):
 
 
 class AvailabilitySerializer(serializers.ModelSerializer):
-    staffId = serializers.UUIDField(source='staff_id')
+    staffId = serializers.UUIDField(required=False, allow_null=True)
     availableDays = serializers.JSONField(source='available_days')
     preferredShift = serializers.CharField(source='preferred_shift', required=False, allow_null=True)
     preferredDaysOff = serializers.JSONField(source='preferred_days_off')
@@ -47,9 +47,20 @@ class AvailabilitySerializer(serializers.ModelSerializer):
         model = Availability
         fields = ['id', 'staffId', 'availableDays', 'preferredShift', 'preferredDaysOff', 'notes']
 
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['staffId'] = instance.staff.user_id if instance.staff else None
+        return rep
+
+    def create(self, validated_data):
+        staff_id = validated_data.pop('staffId', None)
+        if staff_id:
+            validated_data['staff'] = StaffProfile.objects.get(user_id=staff_id)
+        return super().create(validated_data)
+
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
-    staffId = serializers.UUIDField(source='staff_id')
+    staffId = serializers.UUIDField()
     type = serializers.CharField(source='leave_type')
     startDate = serializers.DateField(source='start_date')
     endDate = serializers.DateField(source='end_date')
@@ -59,6 +70,16 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeaveRequest
         fields = ['id', 'staffId', 'type', 'startDate', 'endDate', 'totalDays', 'reason', 'status', 'submittedOn']
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['staffId'] = instance.staff.user_id if instance.staff else None
+        return rep
+
+    def create(self, validated_data):
+        staff_id = validated_data.pop('staffId')
+        validated_data['staff'] = StaffProfile.objects.get(user_id=staff_id)
+        return super().create(validated_data)
 
 
 class RosterSerializer(serializers.ModelSerializer):
@@ -71,21 +92,23 @@ class RosterSerializer(serializers.ModelSerializer):
 
 
 class RosterShiftSerializer(serializers.ModelSerializer):
+    """
+    RosterAssignmentSerializer mapped back to RosterShift name for backward compatibility.
+    """
     date = serializers.DateField(source='shift_date')
-    staffId = serializers.UUIDField(source='staff_id')
-    rosterId = serializers.UUIDField(source='roster_id')
+    staffId = serializers.UUIDField()
+    rosterId = serializers.UUIDField()
     
-    # We serialize shift as the type of the template or a fallback shift type name
     shift = serializers.SerializerMethodField()
 
     class Meta:
-        model = RosterShift
+        model = RosterAssignment
         fields = ['id', 'rosterId', 'staffId', 'date', 'shift', 'start_time', 'end_time', 'duration_hours', 'notes', 'status']
 
     def get_shift(self, obj):
-        if obj.shift_template:
-            return obj.shift_template.shift_type
-        # Fallback to morning/evening/night based on start time
+        if obj.shift:
+            return obj.shift.shift_type
+        # Fallback based on start time
         hour = obj.start_time.hour
         if 5 <= hour < 13:
             return 'morning'
@@ -94,51 +117,114 @@ class RosterShiftSerializer(serializers.ModelSerializer):
         else:
             return 'night'
 
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['rosterId'] = instance.roster_id
+        rep['staffId'] = instance.staff.user_id if instance.staff else None
+        return rep
+
+    def create(self, validated_data):
+        roster_id = validated_data.pop('rosterId')
+        staff_id = validated_data.pop('staffId')
+        
+        validated_data['roster'] = Roster.objects.get(id=roster_id)
+        validated_data['staff'] = StaffProfile.objects.get(user_id=staff_id)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        if 'rosterId' in validated_data:
+            roster_id = validated_data.pop('rosterId')
+            instance.roster = Roster.objects.get(id=roster_id)
+        if 'staffId' in validated_data:
+            staff_id = validated_data.pop('staffId')
+            instance.staff = StaffProfile.objects.get(user_id=staff_id)
+        return super().update(instance, validated_data)
+
 
 class ShiftSwapRequestSerializer(serializers.ModelSerializer):
-    staffId = serializers.UUIDField(source='requester_id')
-    requestedStaffId = serializers.UUIDField(source='requested_staff_id')
-    requesterShiftId = serializers.UUIDField(source='requester_shift_id')
-    offeredShiftId = serializers.UUIDField(source='offered_shift_id', required=False, allow_null=True)
+    """
+    SwapRequestSerializer mapped to ShiftSwapRequest name for backward compatibility.
+    """
+    staffId = serializers.UUIDField()
+    requestedStaffId = serializers.UUIDField(required=False, allow_null=True)
+    requesterShiftId = serializers.UUIDField()
+    offeredShiftId = serializers.UUIDField(required=False, allow_null=True)
     managerNotes = serializers.CharField(source='manager_notes', required=False, allow_null=True, allow_blank=True)
     
-    # Frontend matches currentShift / requestedShift properties
     currentShift = serializers.SerializerMethodField(read_only=True)
     requestedShift = serializers.SerializerMethodField(read_only=True)
     date = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
-        model = ShiftSwapRequest
+        model = SwapRequest
         fields = [
             'id', 'staffId', 'requestedStaffId', 'requesterShiftId', 'offeredShiftId', 
             'currentShift', 'requestedShift', 'date', 'reason', 'status', 'managerNotes'
         ]
 
     def get_currentShift(self, obj):
-        if obj.requester_shift and obj.requester_shift.shift_template:
-            return obj.requester_shift.shift_template.shift_type
+        if obj.current_shift and obj.current_shift.shift:
+            return obj.current_shift.shift.shift_type
         return 'night'
 
     def get_requestedShift(self, obj):
-        if obj.offered_shift and obj.offered_shift.shift_template:
-            return obj.offered_shift.shift_template.shift_type
+        if obj.requested_shift and obj.requested_shift.shift:
+            return obj.requested_shift.shift.shift_type
         return 'morning'
 
     def get_date(self, obj):
-        if obj.requester_shift:
-            return obj.requester_shift.shift_date.strftime('%Y-%m-%d')
+        if obj.current_shift:
+            return obj.current_shift.shift_date.strftime('%Y-%m-%d')
         return ''
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['staffId'] = instance.requester.user_id if instance.requester else None
+        rep['requestedStaffId'] = instance.requested_staff.user_id if instance.requested_staff else None
+        rep['requesterShiftId'] = instance.current_shift_id
+        rep['offeredShiftId'] = instance.requested_shift_id if instance.requested_shift else None
+        return rep
+
+    def create(self, validated_data):
+        staff_id = validated_data.pop('staffId')
+        requested_staff_id = validated_data.pop('requestedStaffId', None)
+        requester_shift_id = validated_data.pop('requesterShiftId')
+        offered_shift_id = validated_data.pop('offeredShiftId', None)
+
+        validated_data['requester'] = StaffProfile.objects.get(user_id=staff_id)
+        if requested_staff_id:
+            validated_data['requested_staff'] = StaffProfile.objects.get(user_id=requested_staff_id)
+        validated_data['current_shift'] = RosterAssignment.objects.get(id=requester_shift_id)
+        if offered_shift_id:
+            validated_data['requested_shift'] = RosterAssignment.objects.get(id=offered_shift_id)
+
+        return super().create(validated_data)
 
 
 class ConflictSerializer(serializers.ModelSerializer):
-    rosterId = serializers.UUIDField(source='roster_id', required=False, allow_null=True)
-    staffId = serializers.UUIDField(source='staff_id', required=False, allow_null=True)
+    rosterId = serializers.UUIDField(required=False, allow_null=True)
+    staffId = serializers.UUIDField(required=False, allow_null=True)
     type = serializers.CharField(source='conflict_type')
     shiftIds = serializers.JSONField(source='shift_ids', required=False, default=list)
 
     class Meta:
         model = Conflict
         fields = ['id', 'rosterId', 'staffId', 'type', 'message', 'severity', 'shiftIds', 'date', 'status']
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['rosterId'] = instance.roster_id
+        rep['staffId'] = instance.staff.user_id if instance.staff else None
+        return rep
+
+    def create(self, validated_data):
+        roster_id = validated_data.pop('rosterId', None)
+        staff_id = validated_data.pop('staffId', None)
+        if roster_id:
+            validated_data['roster'] = Roster.objects.get(id=roster_id)
+        if staff_id:
+            validated_data['staff'] = StaffProfile.objects.get(user_id=staff_id)
+        return super().create(validated_data)
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -149,3 +235,4 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ['id', 'userId', 'type', 'title', 'message', 'read', 'action_url', 'metadata', 'timestamp']
+

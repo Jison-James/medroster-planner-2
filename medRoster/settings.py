@@ -132,7 +132,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-AUTH_USER_MODEL = 'users.Profile'
+AUTH_USER_MODEL = 'users.User'
 
 # DRF configuration
 REST_FRAMEWORK = {

@@ -1,7 +1,8 @@
 import uuid
 from django.db import models
-
-from users.models import Profile
+from django.conf import settings
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 # ============================================================
 # ENUMS / CHOICES
@@ -12,6 +13,11 @@ class ShiftType(models.TextChoices):
     EVENING = 'evening', 'Evening'
     NIGHT = 'night', 'Night'
     CUSTOM = 'custom', 'Custom'
+
+class ClinicalRole(models.TextChoices):
+    DOCTOR = 'Doctor', 'Doctor'
+    NURSE = 'Nurse', 'Nurse'
+    SUPPORT_STAFF = 'Support Staff', 'Support Staff'
 
 class LeaveType(models.TextChoices):
     SICK = 'Sick', 'Sick'
@@ -75,12 +81,39 @@ class NotifType(models.TextChoices):
 # MODELS
 # ============================================================
 
+class StaffProfile(models.Model):
+    """
+    Stores clinical and department details for a staff member.
+    Links 1-to-1 with the custom User model.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='staff_profile')
+    role = models.CharField(max_length=20, choices=ClinicalRole.choices, default=ClinicalRole.NURSE)
+    email = models.EmailField(unique=True)
+    phone = models.CharField(max_length=20, null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[('Active', 'Active'), ('On Leave', 'On Leave'), ('Inactive', 'Inactive')],
+        default='Active'
+    )
+    department = models.TextField(null=True, blank=True)
+    employment_type = models.CharField(max_length=20, default='Full-time')
+    avatar_color = models.TextField(default='#6366f1')
+    joined_on = models.DateField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'staff_profiles'
+
+    def __str__(self):
+        return f"{self.user.full_name or self.email} - {self.role}"
+
+
 class ShiftTemplate(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.TextField()
     start_time = models.TimeField()
     end_time = models.TimeField()
-    duration_hours = models.DecimalField(max_digits=4, decimal_places=2)
+    duration_hours = models.DecimalField(max_digits=4, decimal_places=2, default=8.0)
     shift_type = models.CharField(max_length=20, choices=ShiftType.choices, default=ShiftType.MORNING)
     color = models.TextField(default='#3B82F6')
 
@@ -91,14 +124,14 @@ class ShiftTemplate(models.Model):
         return f"{self.name} ({self.start_time} - {self.end_time})"
 
 
-class RosterRules(models.Model):
+class RosterRule(models.Model):
     max_hours_per_day = models.DecimalField(max_digits=4, decimal_places=2, default=12)
     max_hours_per_week = models.DecimalField(max_digits=5, decimal_places=2, default=48)
     max_hours_per_month = models.DecimalField(max_digits=6, decimal_places=2, default=176)
-    max_consecutive_working_days = models.IntegerField(default=5)
-    min_rest_hours_between_shifts = models.DecimalField(max_digits=4, decimal_places=2, default=11)
-    max_night_shifts_per_week = models.IntegerField(default=3)
-    max_night_shifts_per_month = models.IntegerField(default=10)
+    max_consecutive_days = models.IntegerField(default=5)
+    minimum_rest_hours = models.DecimalField(max_digits=4, decimal_places=2, default=11)
+    max_night_per_week = models.IntegerField(default=3)
+    max_night_per_month = models.IntegerField(default=10)
     equal_shift_distribution = models.BooleanField(default=True)
     equal_weekend_distribution = models.BooleanField(default=True)
     equal_night_distribution = models.BooleanField(default=True)
@@ -117,7 +150,11 @@ class RosterRules(models.Model):
 
 class Availability(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    staff = models.ForeignKey(Profile, on_delete=models.CASCADE, db_column='staff_id', related_name='availabilities')
+    staff = models.ForeignKey(StaffProfile, on_delete=models.CASCADE, db_column='staff_id', related_name='availabilities')
+    date = models.DateField(null=True, blank=True)
+    availability = models.CharField(max_length=20, default='Available', null=True, blank=True)
+    
+    # Backwards compatibility fields for frontend JSON structures
     available_days = models.JSONField(default=list)
     preferred_shift = models.CharField(max_length=20, choices=ShiftType.choices, null=True, blank=True)
     preferred_days_off = models.JSONField(default=list)
@@ -130,12 +167,12 @@ class Availability(models.Model):
         ]
 
     def __str__(self):
-        return f"Availability for {self.staff.full_name}"
+        return f"Availability for {self.staff.user.full_name or self.staff.email}"
 
 
 class LeaveRequest(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    staff = models.ForeignKey(Profile, on_delete=models.CASCADE, db_column='staff_id', related_name='leave_requests')
+    staff = models.ForeignKey(StaffProfile, on_delete=models.CASCADE, db_column='staff_id', related_name='leave_requests')
     leave_type = models.CharField(max_length=20, choices=LeaveType.choices)
     start_date = models.DateField()
     end_date = models.DateField()
@@ -156,7 +193,7 @@ class LeaveRequest(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.staff.full_name} - {self.leave_type} ({self.status})"
+        return f"{self.staff.user.full_name or self.staff.email} - {self.leave_type} ({self.status})"
 
 
 class Roster(models.Model):
@@ -165,6 +202,12 @@ class Roster(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=20, choices=RosterStatus.choices, default=RosterStatus.DRAFT)
+    
+    # Target Architecture Fields
+    date = models.DateField(null=True, blank=True)
+    shift = models.CharField(max_length=50, null=True, blank=True)
+    staff = models.ForeignKey(StaffProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_rosters')
+    published = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'rosters'
@@ -173,15 +216,23 @@ class Roster(models.Model):
             models.Index(fields=['start_date', 'end_date'], name='idx_rosters_dates'),
         ]
 
+    def save(self, *args, **kwargs):
+        self.published = (self.status == RosterStatus.PUBLISHED)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
 
 
-class RosterShift(models.Model):
+class RosterAssignment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     roster = models.ForeignKey(Roster, on_delete=models.CASCADE, db_column='roster_id', related_name='shifts')
-    staff = models.ForeignKey(Profile, on_delete=models.CASCADE, db_column='staff_id', related_name='assigned_shifts')
-    shift_template = models.ForeignKey(ShiftTemplate, on_delete=models.SET_NULL, null=True, blank=True, db_column='shift_template_id', related_name='instances')
+    staff = models.ForeignKey(StaffProfile, on_delete=models.CASCADE, db_column='staff_id', related_name='assigned_shifts')
+    
+    # Target Architecture Fields (matching 'shift')
+    shift = models.ForeignKey(ShiftTemplate, on_delete=models.SET_NULL, null=True, blank=True, db_column='shift_template_id', related_name='instances')
+    
+    # Compatibility Fields
     shift_date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()
@@ -199,15 +250,18 @@ class RosterShift(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.staff.full_name} - {self.shift_date} {self.start_time}"
+        return f"{self.staff.user.full_name or self.staff.email} - {self.shift_date} {self.start_time}"
 
 
-class ShiftSwapRequest(models.Model):
+class SwapRequest(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    requester = models.ForeignKey(Profile, on_delete=models.CASCADE, db_column='requester_id', related_name='sent_swaps')
-    requested_staff = models.ForeignKey(Profile, on_delete=models.CASCADE, db_column='requested_staff_id', related_name='received_swaps')
-    requester_shift = models.ForeignKey(RosterShift, on_delete=models.CASCADE, db_column='requester_shift_id', related_name='swap_requests_as_primary')
-    offered_shift = models.ForeignKey(RosterShift, on_delete=models.SET_NULL, null=True, blank=True, db_column='offered_shift_id', related_name='swap_requests_as_offer')
+    requester = models.ForeignKey(StaffProfile, on_delete=models.CASCADE, db_column='requester_id', related_name='sent_swaps')
+    requested_staff = models.ForeignKey(StaffProfile, on_delete=models.CASCADE, db_column='requested_staff_id', related_name='received_swaps', null=True, blank=True)
+    
+    # Target Architecture fields
+    current_shift = models.ForeignKey(RosterAssignment, on_delete=models.CASCADE, db_column='requester_shift_id', related_name='swap_requests_as_primary')
+    requested_shift = models.ForeignKey(RosterAssignment, on_delete=models.SET_NULL, null=True, blank=True, db_column='offered_shift_id', related_name='swap_requests_as_offer')
+    
     reason = models.TextField()
     status = models.CharField(max_length=20, choices=SwapStatus.choices, default=SwapStatus.PENDING)
     manager_notes = models.TextField(null=True, blank=True)
@@ -216,32 +270,37 @@ class ShiftSwapRequest(models.Model):
         db_table = 'shift_swap_requests'
         indexes = [
             models.Index(fields=['requester'], name='idx_swaps_requester'),
-            models.Index(fields=['requested_staff'], name='idx_swaps_requested'),
             models.Index(fields=['status'], name='idx_swaps_status'),
         ]
 
     def __str__(self):
-        return f"Swap request from {self.requester.full_name} to {self.requested_staff.full_name}"
+        return f"Swap request from {self.requester.user.full_name or self.requester.email}"
 
 
 class Conflict(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     roster = models.ForeignKey(Roster, on_delete=models.CASCADE, null=True, blank=True, db_column='roster_id', related_name='conflicts')
-    staff = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, db_column='staff_id', related_name='conflicts')
+    staff = models.ForeignKey(StaffProfile, on_delete=models.SET_NULL, null=True, blank=True, db_column='staff_id', related_name='conflicts')
     conflict_type = models.CharField(max_length=50, choices=ConflictType.choices)
     message = models.TextField()
     severity = models.CharField(max_length=20, choices=ConflictSeverity.choices, default=ConflictSeverity.WARNING)
     shift_ids = models.JSONField(default=list)
     date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=ConflictStatus.choices, default=ConflictStatus.OPEN)
+    
+    # Target Architecture fields
+    resolved = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'conflicts'
         indexes = [
             models.Index(fields=['roster'], name='idx_conflicts_roster'),
-            models.Index(fields=['staff'], name='idx_conflicts_staff'),
             models.Index(fields=['status'], name='idx_conflicts_status'),
         ]
+
+    def save(self, *args, **kwargs):
+        self.resolved = (self.status == ConflictStatus.RESOLVED)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.conflict_type} on {self.date}"
@@ -249,7 +308,8 @@ class Conflict(models.Model):
 
 class Notification(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(Profile, on_delete=models.CASCADE, db_column='user_id', related_name='notifications')
+    # Linked to auth User model for delivery
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, db_column='user_id', related_name='notifications')
     type = models.CharField(max_length=30, choices=NotifType.choices)
     title = models.TextField()
     message = models.TextField()
@@ -267,4 +327,33 @@ class Notification(models.Model):
         ]
 
     def __str__(self):
-        return f"Notification for {self.user.full_name}: {self.title}"
+        return f"Notification for {self.user.full_name or self.user.email}: {self.title}"
+
+
+# ============================================================
+# SIGNALS
+# ============================================================
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def create_or_update_staff_profile(sender, instance, created, **kwargs):
+    """
+    Ensures that every User has a corresponding StaffProfile for scheduling.
+    """
+    staff_profile, created_profile = StaffProfile.objects.get_or_create(
+        user=instance,
+        defaults={
+            'email': instance.email,
+            'phone': instance.phone or '',
+            'role': ClinicalRole.NURSE,
+            'status': 'Active',
+            'employment_type': 'Full-time',
+            'avatar_color': '#6366f1'
+        }
+    )
+    if not created_profile:
+        # Sync email and phone updates from User
+        staff_profile.email = instance.email
+        if instance.phone:
+            staff_profile.phone = instance.phone
+        staff_profile.save()
+
