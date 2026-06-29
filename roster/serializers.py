@@ -38,7 +38,7 @@ class RosterRulesSerializer(serializers.ModelSerializer):
 
 
 class AvailabilitySerializer(serializers.ModelSerializer):
-    staffId = serializers.UUIDField(required=False, allow_null=True)
+    staffId = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     availableDays = serializers.JSONField(source='available_days')
     preferredShift = serializers.CharField(source='preferred_shift', required=False, allow_null=True)
     preferredDaysOff = serializers.JSONField(source='preferred_days_off')
@@ -60,7 +60,7 @@ class AvailabilitySerializer(serializers.ModelSerializer):
 
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
-    staffId = serializers.UUIDField()
+    staffId = serializers.UUIDField(write_only=True)
     type = serializers.CharField(source='leave_type')
     startDate = serializers.DateField(source='start_date')
     endDate = serializers.DateField(source='end_date')
@@ -96,8 +96,8 @@ class RosterShiftSerializer(serializers.ModelSerializer):
     RosterAssignmentSerializer mapped back to RosterShift name for backward compatibility.
     """
     date = serializers.DateField(source='shift_date')
-    staffId = serializers.UUIDField()
-    rosterId = serializers.UUIDField()
+    staffId = serializers.UUIDField(write_only=True)
+    rosterId = serializers.UUIDField(write_only=True)
     
     shift = serializers.SerializerMethodField()
 
@@ -145,10 +145,10 @@ class ShiftSwapRequestSerializer(serializers.ModelSerializer):
     """
     SwapRequestSerializer mapped to ShiftSwapRequest name for backward compatibility.
     """
-    staffId = serializers.UUIDField()
-    requestedStaffId = serializers.UUIDField(required=False, allow_null=True)
-    requesterShiftId = serializers.UUIDField()
-    offeredShiftId = serializers.UUIDField(required=False, allow_null=True)
+    staffId = serializers.UUIDField(write_only=True)
+    requestedStaffId = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    requesterShiftId = serializers.UUIDField(write_only=True)
+    offeredShiftId = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     managerNotes = serializers.CharField(source='manager_notes', required=False, allow_null=True, allow_blank=True)
     
     currentShift = serializers.SerializerMethodField(read_only=True)
@@ -202,8 +202,8 @@ class ShiftSwapRequestSerializer(serializers.ModelSerializer):
 
 
 class ConflictSerializer(serializers.ModelSerializer):
-    rosterId = serializers.UUIDField(required=False, allow_null=True)
-    staffId = serializers.UUIDField(required=False, allow_null=True)
+    rosterId = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    staffId = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     type = serializers.CharField(source='conflict_type')
     shiftIds = serializers.JSONField(source='shift_ids', required=False, default=list)
 
