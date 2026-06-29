@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     ShiftTemplate, RosterRule, Availability, LeaveRequest, 
-    Roster, RosterAssignment, SwapRequest, Conflict, Notification, StaffProfile
+    Roster, RosterAssignment, SwapRequest, Conflict, Notification, StaffProfile, ActivityLog
 )
 
 class ShiftTemplateSerializer(serializers.ModelSerializer):
@@ -235,4 +235,12 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ['id', 'userId', 'type', 'title', 'message', 'read', 'action_url', 'metadata', 'timestamp']
+
+
+class ActivityLogSerializer(serializers.ModelSerializer):
+    user = serializers.CharField(source='user.full_name', read_only=True)
+
+    class Meta:
+        model = ActivityLog
+        fields = ['id', 'timestamp', 'action', 'message', 'user']
 

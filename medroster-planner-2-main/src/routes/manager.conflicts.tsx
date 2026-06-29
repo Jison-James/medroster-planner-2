@@ -12,12 +12,16 @@ import type { ConflictType } from "@/types";
 
 export const Route = createFileRoute("/manager/conflicts")({ component: Conflicts });
 
-const conflictMeta: Record<ConflictType, { label: string; icon: typeof CalendarX; color: string; bg: string }> = {
+const conflictMeta: Record<string, { label: string; icon: typeof CalendarX; color: string; bg: string }> = {
   "Leave_Conflict": { label: "Leave conflict", icon: CalendarX, color: "text-warning", bg: "bg-warning/10" },
   "Double_Booking": { label: "Double booking", icon: Copy, color: "text-destructive", bg: "bg-destructive/10" },
   "Overtime_Violation": { label: "Overtime", icon: Clock, color: "text-destructive", bg: "bg-destructive/10" },
   "Understaffed_Shift": { label: "Understaffed", icon: UserMinus, color: "text-warning", bg: "bg-warning/10" },
   "Insufficient_Rest": { label: "Rest violation", icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10" },
+  "Availability_Violation": { label: "Availability violation", icon: CalendarX, color: "text-warning", bg: "bg-warning/10" },
+  "Overstaffed_Shift": { label: "Overstaffed shift", icon: Sparkles, color: "text-warning", bg: "bg-warning/10" },
+  "Qualification_Mismatch": { label: "Qualification mismatch", icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10" },
+  "Department_Constraint_Violation": { label: "Department constraint", icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10" },
 };
 
 function Conflicts() {

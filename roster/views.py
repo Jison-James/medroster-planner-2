@@ -10,12 +10,13 @@ from users.models import User
 from .models import (
     ShiftTemplate, RosterRule, Availability, LeaveRequest, 
     Roster, RosterAssignment, SwapRequest, Conflict, Notification, 
-    StaffProfile, ShiftType
+    StaffProfile, ShiftType, ActivityLog
 )
 from .serializers import (
     ShiftTemplateSerializer, RosterRulesSerializer, AvailabilitySerializer,
     LeaveRequestSerializer, RosterSerializer, RosterShiftSerializer,
-    ShiftSwapRequestSerializer, ConflictSerializer, NotificationSerializer
+    ShiftSwapRequestSerializer, ConflictSerializer, NotificationSerializer,
+    ActivityLogSerializer
 )
 from .permissions import IsManager, IsOwnerOrManager
 from .services.roster_generator import RosterGeneratorService
@@ -64,6 +65,13 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         leave.status = 'Approved'
         leave.save()
 
+        # Log Activity
+        ActivityLog.objects.create(
+            action='Leave_Approved',
+            message=f"Leave request for {leave.staff.user.full_name or leave.staff.email} from {leave.start_date} to {leave.end_date} has been approved.",
+            user=request.user
+        )
+
         # Send notification to the employee
         Notification.objects.create(
             user=leave.staff.user,
@@ -80,6 +88,13 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         leave = self.get_object()
         leave.status = 'Rejected'
         leave.save()
+
+        # Log Activity
+        ActivityLog.objects.create(
+            action='Leave_Rejected',
+            message=f"Leave request for {leave.staff.user.full_name or leave.staff.email} from {leave.start_date} to {leave.end_date} has been rejected.",
+            user=request.user
+        )
 
         # Send notification to the employee
         Notification.objects.create(
@@ -125,6 +140,13 @@ class RosterViewSet(viewsets.ModelViewSet):
         service = RosterGeneratorService()
         roster, created_shifts = service.generate(start_date, end_date, requirements)
 
+        # Log Activity
+        ActivityLog.objects.create(
+            action='Roster_Generated',
+            message=f"Roster generated successfully for period {start_date} to {end_date}. Created {len(created_shifts)} assignments.",
+            user=request.user
+        )
+
         # Run conflict detector on newly generated roster
         detector = ConflictDetectorService()
         detector.detect_conflicts(roster)
@@ -139,6 +161,13 @@ class RosterViewSet(viewsets.ModelViewSet):
         roster = self.get_object()
         roster.status = 'Published'
         roster.save()
+
+        # Log Activity
+        ActivityLog.objects.create(
+            action='Schedule_Published',
+            message=f"Schedule '{roster.name}' has been published.",
+            user=request.user
+        )
 
         # Update all associated shifts status
         RosterAssignment.objects.filter(roster=roster).update(status='Scheduled')
@@ -307,6 +336,12 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def mark_all_read(self, request):
         self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({'status': 'All notifications marked as read'})
+
+
+class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = ActivityLog.objects.select_related('user').all()
+    serializer_class = ActivityLogSerializer
+    permission_classes = [IsOwnerOrManager]
 
 
 @api_view(['GET'])

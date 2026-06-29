@@ -57,6 +57,10 @@ class ConflictType(models.TextChoices):
     OVERTIME_VIOLATION = 'Overtime_Violation', 'Overtime Violation'
     UNDERSTAFFED_SHIFT = 'Understaffed_Shift', 'Understaffed Shift'
     INSUFFICIENT_REST = 'Insufficient_Rest', 'Insufficient Rest'
+    AVAILABILITY_VIOLATION = 'Availability_Violation', 'Availability Violation'
+    OVERSTAFFED_SHIFT = 'Overstaffed_Shift', 'Overstaffed Shift'
+    QUALIFICATION_MISMATCH = 'Qualification_Mismatch', 'Qualification Mismatch'
+    DEPARTMENT_CONSTRAINT_VIOLATION = 'Department_Constraint_Violation', 'Department Constraint Violation'
 
 class ConflictSeverity(models.TextChoices):
     CRITICAL = 'Critical', 'Critical'
@@ -330,6 +334,21 @@ class Notification(models.Model):
         return f"Notification for {self.user.full_name or self.user.email}: {self.title}"
 
 
+class ActivityLog(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    action = models.CharField(max_length=100)
+    message = models.TextField()
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='activity_logs')
+
+    class Meta:
+        db_table = 'activity_logs'
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.action} - {self.timestamp}"
+
+
 # ============================================================
 # SIGNALS
 # ============================================================
@@ -356,4 +375,15 @@ def create_or_update_staff_profile(sender, instance, created, **kwargs):
         if instance.phone:
             staff_profile.phone = instance.phone
         staff_profile.save()
+
+
+from django.contrib.auth.signals import user_logged_in
+
+@receiver(user_logged_in)
+def log_user_login(sender, request, user, **kwargs):
+    ActivityLog.objects.create(
+        action='User_Login',
+        message=f"User {user.full_name or user.email} logged in successfully.",
+        user=user
+    )
 

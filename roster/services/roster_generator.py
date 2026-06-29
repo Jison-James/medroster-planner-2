@@ -1,25 +1,21 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from typing import Dict, List, Tuple
 from django.utils import timezone
 from users.models import User
 from ..models import (
     Roster, RosterAssignment, StaffProfile, LeaveRequest, 
-    ShiftTemplate, Conflict, ClinicalRole
+    ShiftTemplate, Conflict, ClinicalRole, RosterRule, Availability
 )
 
 class RosterGeneratorService:
     """
     Service responsible for roster generation.
-    Currently implements a greedy assignment scheduling logic and provides
-    hooks for an advanced scheduling algorithm.
+    Enforces a prevention-first constraint validation algorithm.
     """
 
     def generate(self, start_date: date, end_date: date, requirements: Dict[str, Dict[str, int]]) -> Tuple[Roster, List[RosterAssignment]]:
         """
         Generates shifts for staff members over a specified period.
-        
-        TODO: Replace this greedy algorithm with a constraint-satisfaction based solver 
-        (e.g., OR-Tools CP-SAT or Genetic Algorithm) to satisfy fairness and complex rules.
         """
         # Create Roster Draft
         roster_name = f"Roster ({start_date} to {end_date})"
@@ -81,12 +77,15 @@ class RosterGeneratorService:
                         id__in=already_assigned_staff_ids
                     )
 
-
-                    # Greedy assignment
+                    # Greedy assignment with constraint checking
                     assigned_count = 0
                     for staff in eligible_staff:
                         if assigned_count >= quota:
                             break
+
+                        # Validate all rules and constraints (Availability, Overlap, Rest, Workload, etc.)
+                        if not self._validate_constraints(staff, current_day, template, created_shifts):
+                            continue
 
                         shift = RosterAssignment.objects.create(
                             roster=roster,
@@ -107,7 +106,7 @@ class RosterGeneratorService:
                         Conflict.objects.create(
                             roster=roster,
                             conflict_type='Understaffed_Shift',
-                            message=f"Understaffed shift: Assigned {assigned_count} out of {quota} required {role_name}s for {s_type.capitalize()} shift.",
+                            message=f"Understaffed shift: Assigned {assigned_count} out of {quota} required {role_name}s for {s_type.capitalize()} shift on {current_day}.",
                             severity='Warning',
                             date=current_day,
                             status='Open'
@@ -116,6 +115,101 @@ class RosterGeneratorService:
             current_day += timedelta(days=1)
 
         return roster, created_shifts
+
+    def _validate_constraints(self, staff: StaffProfile, current_day: date, template: ShiftTemplate, created_shifts: List[RosterAssignment]) -> bool:
+        """
+        Prevention-first validation rules. Returns True if candidate shift is valid for staff.
+        """
+        # 1. Load Rules
+        rules = RosterRule.objects.first()
+        if not rules:
+            rules = RosterRule.objects.create()
+
+        # 2. Convert candidate times to datetime
+        cand_start = datetime.combine(current_day, template.start_time)
+        cand_end = cand_start + timedelta(hours=float(template.duration_hours))
+
+        # 3. Collect existing assignments (both from DB and current run) in the surrounding range
+        overlapping_db_shifts = list(RosterAssignment.objects.filter(
+            staff=staff,
+            shift_date__range=[current_day - timedelta(days=7), current_day + timedelta(days=7)]
+        ))
+        all_shifts = overlapping_db_shifts + [s for s in created_shifts if s.staff_id == staff.id]
+
+        # 4. Check Overlapping Shift / Double Booking / Rest Period Checks
+        for shift in all_shifts:
+            s_start = datetime.combine(shift.shift_date, shift.start_time)
+            s_end = s_start + timedelta(hours=float(shift.duration_hours))
+            
+            # Simple overlap check
+            if cand_start < s_end and s_start < cand_end:
+                return False
+
+            # Rest Period Check
+            rest_hours = float(rules.minimum_rest_hours)
+            if s_end <= cand_start:
+                rest_diff = (cand_start - s_end).total_seconds() / 3600.0
+                if rest_diff < rest_hours:
+                    return False
+            elif cand_end <= s_start:
+                rest_diff = (s_start - cand_end).total_seconds() / 3600.0
+                if rest_diff < rest_hours:
+                    return False
+
+        # 5. Availability Check
+        day_name = current_day.strftime('%a')
+        avail = Availability.objects.filter(staff=staff).first()
+        if avail:
+            if day_name not in avail.available_days:
+                return False
+
+        # 6. Max Workload limits (Daily and Weekly)
+        cand_dur = float(template.duration_hours)
+        
+        # Daily workload limit
+        daily_hours = sum(float(s.duration_hours) for s in all_shifts if s.shift_date == current_day)
+        if daily_hours + cand_dur > float(rules.max_hours_per_day):
+            return False
+
+        # Weekly workload limit
+        monday = current_day - timedelta(days=current_day.weekday())
+        sunday = monday + timedelta(days=6)
+        weekly_hours = sum(float(s.duration_hours) for s in all_shifts if monday <= s.shift_date <= sunday)
+        if weekly_hours + cand_dur > float(rules.max_hours_per_week):
+            return False
+
+        # Max consecutive days limit
+        work_dates = {s.shift_date for s in all_shifts}
+        work_dates.add(current_day)
+        
+        run_len = 1
+        # count left
+        check_date = current_day - timedelta(days=1)
+        while check_date in work_dates:
+            run_len += 1
+            check_date -= timedelta(days=1)
+        # count right
+        check_date = current_day + timedelta(days=1)
+        while check_date in work_dates:
+            run_len += 1
+            check_date += timedelta(days=1)
+            
+        if run_len > rules.max_consecutive_days:
+            return False
+
+        # Night shifts limit per week
+        if template.shift_type == 'night':
+            weekly_nights = sum(1 for s in all_shifts if monday <= s.shift_date <= sunday and s.shift and s.shift.shift_type == 'night')
+            if weekly_nights + 1 > rules.max_night_per_week:
+                return False
+
+        # 7. Leave request check
+        leaves = LeaveRequest.objects.filter(staff=staff, status='Approved')
+        for leave in leaves:
+            if leave.start_date <= current_day <= leave.end_date:
+                return False
+
+        return True
 
     def _normalize_role_name(self, role_name: str) -> str:
         """Maps frontend role descriptors to backend ClinicalRole values."""

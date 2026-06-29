@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ShiftTemplateViewSet, RosterRuleViewSet, AvailabilityViewSet,
     LeaveRequestViewSet, RosterViewSet, RosterAssignmentViewSet,
-    SwapRequestViewSet, ConflictViewSet, NotificationViewSet
+    SwapRequestViewSet, ConflictViewSet, NotificationViewSet,
+    ActivityLogViewSet
 )
 
 router = DefaultRouter()
@@ -16,6 +17,7 @@ router.register(r'shifts', RosterAssignmentViewSet, basename='rostershift')
 router.register(r'swap-requests', SwapRequestViewSet, basename='shiftswaprequest')
 router.register(r'conflicts', ConflictViewSet, basename='conflict')
 router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'activity-logs', ActivityLogViewSet, basename='activitylog')
 
 urlpatterns = [
     path('', include(router.urls)),
