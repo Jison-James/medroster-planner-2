@@ -139,7 +139,7 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const unread = notifications.filter((n) => !n.read).length;
-  const me = staff.find((s) => s.id === currentUserId) ?? staff[0];
+  const me = staff.find((s) => s.id === currentUserId) ?? staff[0] ?? { name: 'Loading...', role: 'Loading', avatarColor: '#6366f1' };
 
   const handleLogout = () => {
     setRole(null);

@@ -29,16 +29,36 @@ function Login() {
 
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { email: "demo@medroster.health", password: "demo1234", remember: true },
+    defaultValues: { email: "manager@medroster.health", password: "medroster123", remember: true },
   });
 
-  const onSubmit = handleSubmit(async () => {
+  const onSubmit = handleSubmit(async (vals) => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
-    setRole(pickedRole);
-    setCurrentUserId(pickedRole === "manager" ? "s1" : "s2");
-    toast.success(`Welcome back — logged in as ${pickedRole === "manager" ? "Manager" : "Staff"}`);
-    navigate({ to: pickedRole === "manager" ? "/manager/dashboard" : "/staff/dashboard" });
+    try {
+      const res = await fetch("http://localhost:8000/api/auth/login/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: vals.email, password: vals.password })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.non_field_errors?.[0] || data.detail || "Login failed - Invalid email or password");
+      }
+
+      localStorage.setItem("access_token", data.access);
+      
+      const userRole = data.user.systemRole === "manager" ? "manager" : "staff";
+      setRole(userRole);
+      setCurrentUserId(data.user.id);
+      
+      toast.success(`Welcome back — logged in as ${userRole === "manager" ? "Manager" : "Staff"}`);
+      navigate({ to: userRole === "manager" ? "/manager/dashboard" : "/staff/dashboard" });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
   });
 
   return (
@@ -81,18 +101,7 @@ function Login() {
           <h1 className="font-display text-3xl font-bold">Welcome back</h1>
           <p className="mt-1 text-muted-foreground">Log in to manage your shifts and team.</p>
 
-          <div className="mt-6 flex rounded-xl border border-border bg-card p-1">
-            {(["manager", "staff"] as const).map((r) => (
-              <button key={r} type="button"
-                onClick={() => setPickedRole(r)}
-                className={cn(
-                  "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  pickedRole === r ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                )}>
-                Log in as {r === "manager" ? "Manager" : "Staff"}
-              </button>
-            ))}
-          </div>
+          <div className="mt-6"></div>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <div className="space-y-1.5">
@@ -122,7 +131,7 @@ function Login() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">Any email and password will sign you in — this is a demo.</p>
+          <p className="mt-6 text-center text-xs text-muted-foreground">The fields have been pre-filled with the working manager credentials.</p>
         </div>
       </div>
     </div>

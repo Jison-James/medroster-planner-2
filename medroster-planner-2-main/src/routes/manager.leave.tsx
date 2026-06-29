@@ -28,9 +28,13 @@ function LeaveMgmt() {
   const nameOf = (id: string) => staff.find((s) => s.id === id)?.name ?? "Unknown";
 
   const setStatus = async (id: string, status: "Approved" | "Rejected") => {
-    if (status === "Approved") await leaveService.approve(id); else await leaveService.reject(id);
-    setLeaves((arr) => arr.map((l) => l.id === id ? { ...l, status } : l));
-    toast.success(status === "Approved" ? "Leave approved" : "Leave rejected");
+    try {
+      if (status === "Approved") await leaveService.approve(id); else await leaveService.reject(id);
+      setLeaves((arr) => arr.map((l) => l.id === id ? { ...l, status } : l));
+      toast.success(status === "Approved" ? "Leave approved" : "Leave rejected");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update leave status.");
+    }
   };
 
   return (

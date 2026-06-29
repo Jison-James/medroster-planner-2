@@ -13,10 +13,11 @@ import type { ConflictType } from "@/types";
 export const Route = createFileRoute("/manager/conflicts")({ component: Conflicts });
 
 const conflictMeta: Record<ConflictType, { label: string; icon: typeof CalendarX; color: string; bg: string }> = {
-  "Leave Conflict": { label: "Leave conflict", icon: CalendarX, color: "text-warning", bg: "bg-warning/10" },
-  "Double Booking": { label: "Double booking", icon: Copy, color: "text-destructive", bg: "bg-destructive/10" },
-  "Overtime Violation": { label: "Overtime", icon: Clock, color: "text-destructive", bg: "bg-destructive/10" },
-  "Understaffed Shift": { label: "Understaffed", icon: UserMinus, color: "text-warning", bg: "bg-warning/10" },
+  "Leave_Conflict": { label: "Leave conflict", icon: CalendarX, color: "text-warning", bg: "bg-warning/10" },
+  "Double_Booking": { label: "Double booking", icon: Copy, color: "text-destructive", bg: "bg-destructive/10" },
+  "Overtime_Violation": { label: "Overtime", icon: Clock, color: "text-destructive", bg: "bg-destructive/10" },
+  "Understaffed_Shift": { label: "Understaffed", icon: UserMinus, color: "text-warning", bg: "bg-warning/10" },
+  "Insufficient_Rest": { label: "Rest violation", icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10" },
 };
 
 function Conflicts() {
@@ -39,7 +40,7 @@ function Conflicts() {
       ) : (
         <div className="space-y-3">
           {open.map((c) => {
-            const meta = conflictMeta[c.type];
+            const meta = conflictMeta[c.type as ConflictType] || { label: c.type.replace("_", " "), icon: AlertTriangle, color: "text-warning", bg: "bg-warning/10" };
             const Icon = meta.icon;
             const staffName = c.staffId ? staff.find((s) => s.id === c.staffId)?.name : null;
             return (

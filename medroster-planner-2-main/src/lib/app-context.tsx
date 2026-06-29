@@ -1,15 +1,8 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import {
-  staffList as initialStaff,
-  leaveRequests as initialLeave,
-  swapRequests as initialSwaps,
-  roster as initialRoster,
-  conflicts as initialConflicts,
-  notifications as initialNotifs,
-  systemUsers as initialUsers,
-  defaultRules,
-  shiftTemplates as initialTemplates,
-} from "@/data/mock";
+import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from "react";
+import { 
+  staffService, leaveService, rosterService, swapService, 
+  settingsService, conflictService, notificationService, shiftTemplateService 
+} from "@/services";
 import type {
   Role,
   Staff,
@@ -56,18 +49,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // editing browser storage in DevTools, bypassing the login screen.
   const [role, setRoleState] = useState<Role | null>(null);
   const [currentUserId, setCurrentUserIdState] = useState<string>("s1");
-  const [staff, setStaff] = useState<Staff[]>(initialStaff);
-  const [leaves, setLeaves] = useState<LeaveRequest[]>(initialLeave);
-  const [swaps, setSwaps] = useState<SwapRequest[]>(initialSwaps);
-  const [roster, setRoster] = useState<RosterEntry[]>(initialRoster);
-  const [conflicts, setConflicts] = useState<Conflict[]>(initialConflicts);
-  const [notifications, setNotifications] = useState<AppNotification[]>(initialNotifs);
-  const [users, setUsers] = useState<SystemUser[]>(initialUsers);
-  const [rules, setRules] = useState<RosterRules>(defaultRules);
-  const [templates, setTemplates] = useState<ShiftTemplate[]>(initialTemplates);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [swaps, setSwaps] = useState<SwapRequest[]>([]);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [users, setUsers] = useState<SystemUser[]>([]);
+  const [rules, setRules] = useState<RosterRules>({} as RosterRules);
+  const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
 
   const setRole = (r: Role | null) => setRoleState(r);
   const setCurrentUserId = (id: string) => setCurrentUserIdState(id);
+
+  useEffect(() => {
+    if (role) {
+      staffService.list().then(data => { if (data?.length) setStaff(data); });
+      leaveService.list().then(data => { if (data?.length) setLeaves(data); });
+      swapService.list().then(data => { if (data?.length) setSwaps(data); });
+      rosterService.listShifts().then(data => { if (data?.length) setRoster(data); });
+      conflictService.list().then(data => { if (data?.length) setConflicts(data); });
+      notificationService.list().then(data => { if (data?.length) setNotifications(data); });
+      shiftTemplateService.list().then(data => { if (data?.length) setTemplates(data); });
+      settingsService.getRules().then(data => { if (data) setRules(data); });
+    }
+  }, [role]);
 
 
   const value = useMemo<AppState>(

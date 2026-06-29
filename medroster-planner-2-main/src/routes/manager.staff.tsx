@@ -55,19 +55,23 @@ function StaffMgmt() {
   });
 
   const onAdd = handleSubmit(async (vals) => {
-    const newMember: Staff = {
-      id: `s${Date.now()}`,
-      employeeId: `EMP-${1000 + staff.length + 1}`,
-      name: vals.name, email: vals.email, phone: vals.phone,
-      role: vals.role, department: vals.department,
-      status: "Active", joinedOn: new Date().toISOString().slice(0, 10),
-      employmentType: vals.employmentType, availableDays: ["Mon","Tue","Wed","Thu","Fri"],
-      preferredShift: "morning", preferredDaysOff: ["Sat","Sun"], avatarColor: "#4F86C6",
-    };
-    await staffService.save(newMember);
-    setStaff((arr) => [newMember, ...arr]);
-    toast.success("Staff member added");
-    reset(); setOpenAdd(false);
+    try {
+      const newMember: Staff = {
+        id: `s${Date.now()}`,
+        employeeId: `EMP-${Date.now().toString().slice(-6)}`,
+        name: vals.name, email: vals.email, phone: vals.phone,
+        role: vals.role, department: vals.department,
+        status: "Active", joinedOn: new Date().toISOString().slice(0, 10),
+        employmentType: vals.employmentType, availableDays: ["Mon","Tue","Wed","Thu","Fri"],
+        preferredShift: "morning", preferredDaysOff: ["Sat","Sun"], avatarColor: "#4F86C6",
+      };
+      const saved = await staffService.save(newMember);
+      setStaff((arr) => [saved, ...arr]);
+      toast.success("Staff member added");
+      reset(); setOpenAdd(false);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to add staff member.");
+    }
   });
 
   return (
