@@ -1,7 +1,10 @@
+import csv
+from django.http import HttpResponse
 from datetime import datetime, timedelta
 from django.utils import timezone
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from users.models import User
 from .models import (
@@ -18,6 +21,7 @@ from .permissions import IsManager, IsOwnerOrManager
 from .services.roster_generator import RosterGeneratorService
 from .services.conflict_detector import ConflictDetectorService
 
+
 class ShiftTemplateViewSet(viewsets.ModelViewSet):
     queryset = ShiftTemplate.objects.all()
     serializer_class = ShiftTemplateSerializer
@@ -31,7 +35,7 @@ class RosterRuleViewSet(viewsets.ModelViewSet):
 
 
 class AvailabilityViewSet(viewsets.ModelViewSet):
-    queryset = Availability.objects.all()
+    queryset = Availability.objects.select_related('staff__user').all()
     serializer_class = AvailabilitySerializer
     permission_classes = [IsOwnerOrManager]
 
@@ -44,7 +48,7 @@ class AvailabilityViewSet(viewsets.ModelViewSet):
 
 
 class LeaveRequestViewSet(viewsets.ModelViewSet):
-    queryset = LeaveRequest.objects.all()
+    queryset = LeaveRequest.objects.select_related('staff__user').all()
     serializer_class = LeaveRequestSerializer
     permission_classes = [IsOwnerOrManager]
 
@@ -90,7 +94,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
 
 class RosterViewSet(viewsets.ModelViewSet):
-    queryset = Roster.objects.all()
+    queryset = Roster.objects.select_related('staff__user').prefetch_related('shifts').all()
     serializer_class = RosterSerializer
     permission_classes = [IsOwnerOrManager]
 
@@ -153,9 +157,33 @@ class RosterViewSet(viewsets.ModelViewSet):
 
         return Response(RosterSerializer(roster).data, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['get'], url_path='export-csv', permission_classes=[IsOwnerOrManager])
+    def export_csv(self, request, pk=None):
+        roster = self.get_object()
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="roster_{roster.id}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Date', 'Shift Name', 'Start Time', 'End Time', 'Staff Name', 'Role', 'Status'])
+        
+        shifts = RosterAssignment.objects.filter(roster=roster).select_related('staff__user', 'shift')
+        for s in shifts:
+            writer.writerow([
+                s.shift_date,
+                s.shift.name if s.shift else 'Custom Shift',
+                s.start_time,
+                s.end_time,
+                s.staff.user.full_name if s.staff else '',
+                s.staff.role if s.staff else '',
+                s.status
+            ])
+        
+        return response
+
+
 
 class RosterAssignmentViewSet(viewsets.ModelViewSet):
-    queryset = RosterAssignment.objects.all()
+    queryset = RosterAssignment.objects.select_related('roster', 'staff__user', 'shift').all()
     serializer_class = RosterShiftSerializer
     permission_classes = [IsOwnerOrManager]
 
@@ -167,7 +195,7 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
 
 
 class SwapRequestViewSet(viewsets.ModelViewSet):
-    queryset = SwapRequest.objects.all()
+    queryset = SwapRequest.objects.select_related('requester__user', 'requested_staff__user', 'current_shift__shift', 'requested_shift__shift').all()
     serializer_class = ShiftSwapRequestSerializer
     permission_classes = [IsOwnerOrManager]
 
@@ -238,7 +266,7 @@ class SwapRequestViewSet(viewsets.ModelViewSet):
 
 
 class ConflictViewSet(viewsets.ModelViewSet):
-    queryset = Conflict.objects.all()
+    queryset = Conflict.objects.select_related('roster', 'staff__user').all()
     serializer_class = ConflictSerializer
     permission_classes = [IsOwnerOrManager]
 
@@ -258,7 +286,7 @@ class ConflictViewSet(viewsets.ModelViewSet):
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
-    queryset = Notification.objects.all()
+    queryset = Notification.objects.select_related('user').all()
     serializer_class = NotificationSerializer
     permission_classes = [IsOwnerOrManager]
 
@@ -279,4 +307,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def mark_all_read(self, request):
         self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({'status': 'All notifications marked as read'})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    return Response({'status': 'healthy', 'time': timezone.now()})
+
 

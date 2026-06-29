@@ -21,6 +21,9 @@ class IsOwnerOrManager(permissions.BasePermission):
     Object-level permission: Allows access if the object belongs to the user,
     or if the requesting user is a manager.
     """
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated
+
     def has_object_permission(self, request, view, obj):
         if not request.user or not request.user.is_authenticated:
             return False

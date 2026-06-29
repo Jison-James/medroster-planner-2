@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, CalendarRange, ClipboardList, Settings as SettingsIcon,
   AlertTriangle, Repeat, CalendarCheck, CalendarPlus, Sparkles,
   Sliders, ClipboardCheck, HelpCircle, UserCog, ShieldCheck, Bell, User,
-  LogOut, Menu, X, ChevronLeft, ChevronRight, Heart,
+  LogOut, Menu, X, ChevronLeft, ChevronRight, Heart, Sun, Moon,
 } from "lucide-react";
 import { useApp } from "@/lib/app-context";
 import { cn } from "@/lib/utils";
@@ -135,8 +135,19 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const nav = role === "manager" ? managerNav : staffNav;
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   const unread = notifications.filter((n) => !n.read).length;
   const me = staff.find((s) => s.id === currentUserId) ?? staff[0] ?? { name: 'Loading...', role: 'Loading', avatarColor: '#6366f1' };
@@ -192,6 +203,14 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
+              aria-label="Toggle theme"
+            >
+              {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            </Button>
             <Button asChild variant="ghost" size="icon" className="relative" aria-label="Notifications">
               <Link to={role === "staff" ? "/staff/notifications" : "/manager/dashboard"}>
                 <Bell className="h-5 w-5" />
