@@ -19,8 +19,7 @@ from .serializers import (
     ActivityLogSerializer
 )
 from .permissions import IsManager, IsOwnerOrManager
-from .services.roster_generator import RosterGeneratorService
-from .services.conflict_detector import ConflictDetectorService
+from .services.scheduler import SchedulerService
 
 
 class ShiftTemplateViewSet(viewsets.ModelViewSet):
@@ -137,7 +136,7 @@ class RosterViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Delegate generation logic to Service
-        service = RosterGeneratorService()
+        service = SchedulerService()
         roster, created_shifts = service.generate(start_date, end_date, requirements)
 
         # Log Activity
@@ -146,10 +145,6 @@ class RosterViewSet(viewsets.ModelViewSet):
             message=f"Roster generated successfully for period {start_date} to {end_date}. Created {len(created_shifts)} assignments.",
             user=request.user
         )
-
-        # Run conflict detector on newly generated roster
-        detector = ConflictDetectorService()
-        detector.detect_conflicts(roster)
 
         return Response({
             'roster': RosterSerializer(roster).data,
