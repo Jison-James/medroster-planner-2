@@ -60,7 +60,6 @@ function StaffDashboard() {
           <h3 className="mb-2 font-display text-base font-semibold">Quick actions</h3>
           <Button asChild className="w-full justify-start" variant="outline"><Link to="/staff/request-leave"><CalendarPlus className="mr-2 h-4 w-4" />Request leave</Link></Button>
           <Button asChild className="w-full justify-start" variant="outline"><Link to="/staff/availability"><CalendarCheck className="mr-2 h-4 w-4" />Update availability</Link></Button>
-          <Button asChild className="w-full justify-start" variant="outline"><Link to="/staff/swaps"><Repeat className="mr-2 h-4 w-4" />Request shift swap</Link></Button>
         </CardContent></Card>
       </div>
     </div>

@@ -1,4 +1,4 @@
-from ...models import Conflict, RosterAssignment
+from roster.models import Conflict, RosterAssignment
 from datetime import date
 
 class SuggestionEngine:
@@ -45,16 +45,6 @@ class SuggestionEngine:
             conflict.actual_value = "Scheduled"
             conflict.suggested_resolution = f"Reassign the shift to another employee or remove {emp_name} from the shift using the Planning Board."
             
-        elif c_type == 'AVAILABILITY_VIOLATION':
-            day_name = meta.get('day_name', '') if meta else ''
-            conflict.title = f"Availability Violation - {emp_name}"
-            conflict.location = f"{shift_name} on {date_str}"
-            conflict.description = f"{emp_name} is scheduled on {date_str} ({day_name}) which is marked as unavailable."
-            conflict.reason = "User-declared availability constraint violated."
-            conflict.expected_value = "Available"
-            conflict.actual_value = "Unavailable"
-            conflict.suggested_resolution = "Find an alternative available staff member on the Planning Board."
-            
         elif c_type == 'REST_RULE_VIOLATION':
             gap = meta.get('gap', 0.0) if meta else 0.0
             min_rest = meta.get('min_rest', 11.0) if meta else 11.0
@@ -81,7 +71,13 @@ class SuggestionEngine:
         elif c_type == 'UNDERSTAFFED_SHIFT':
             roles = meta.get('roles', []) if meta else []
             s_name = meta.get('shift_name', '') if meta else ''
-            conflict.title = f"Understaffed Shift - {s_name}"
+            
+            if len(roles) == 1:
+                role_name = roles[0][0]
+                conflict.title = f"Understaffed Shift - {s_name} ({role_name})"
+            else:
+                conflict.title = f"Understaffed Shift - {s_name}"
+                
             conflict.location = f"{s_name} Shift on {date_str}"
             
             role_desc = ", ".join([f"{r} (Req: {req}, Assigned: {act})" for r, req, act in roles])
@@ -99,7 +95,13 @@ class SuggestionEngine:
         elif c_type == 'OVERSTAFFED_SHIFT':
             roles = meta.get('roles', []) if meta else []
             s_name = meta.get('shift_name', '') if meta else ''
-            conflict.title = f"Overstaffed Shift - {s_name}"
+            
+            if len(roles) == 1:
+                role_name = roles[0][0]
+                conflict.title = f"Overstaffed Shift - {s_name} ({role_name})"
+            else:
+                conflict.title = f"Overstaffed Shift - {s_name}"
+                
             conflict.location = f"{s_name} Shift on {date_str}"
             
             role_desc = ", ".join([f"{r} (Req: {req}, Assigned: {act})" for r, req, act in roles])

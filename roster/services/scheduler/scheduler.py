@@ -55,22 +55,6 @@ class SchedulerService:
                                 
                         if not scored_candidates:
                             # Stage 3: UNDERSTAFFED
-                            from ...models import Conflict
-                            from ..conflict_engine.suggestion_engine import SuggestionEngine
-                            
-                            conflict = Conflict(
-                                roster=roster,
-                                conflict_type='UNDERSTAFFED_SHIFT',
-                                severity='High',
-                                status='Open',
-                                date=current_day,
-                                shift=template
-                            )
-                            SuggestionEngine.populate_details(conflict, meta={
-                                'roles': [(role_name, quota, assigned_count)],
-                                'shift_name': s_type.capitalize()
-                            })
-                            conflict.save()
                             break
                             
                         # Sort by soft_violations ASCENDING (prefer 0 violations), then score DESCENDING

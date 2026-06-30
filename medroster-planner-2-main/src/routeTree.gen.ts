@@ -14,7 +14,6 @@ import { Route as ManagerRouteImport } from './routes/manager'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as StaffSwapsRouteImport } from './routes/staff.swaps'
 import { Route as StaffShiftsRouteImport } from './routes/staff.shifts'
 import { Route as StaffRequestLeaveRouteImport } from './routes/staff.request-leave'
 import { Route as StaffProfileRouteImport } from './routes/staff.profile'
@@ -23,8 +22,6 @@ import { Route as StaffLeaveStatusRouteImport } from './routes/staff.leave-statu
 import { Route as StaffHelpRouteImport } from './routes/staff.help'
 import { Route as StaffDashboardRouteImport } from './routes/staff.dashboard'
 import { Route as StaffAvailabilityRouteImport } from './routes/staff.availability'
-import { Route as ManagerUsersRouteImport } from './routes/manager.users'
-import { Route as ManagerSwapsRouteImport } from './routes/manager.swaps'
 import { Route as ManagerStaffRouteImport } from './routes/manager.staff'
 import { Route as ManagerShiftTemplatesRouteImport } from './routes/manager.shift-templates'
 import { Route as ManagerSettingsRouteImport } from './routes/manager.settings'
@@ -38,7 +35,6 @@ import { Route as ManagerGenerateRouteImport } from './routes/manager.generate'
 import { Route as ManagerDashboardRouteImport } from './routes/manager.dashboard'
 import { Route as ManagerConflictsRouteImport } from './routes/manager.conflicts'
 import { Route as ManagerAvailabilityRouteImport } from './routes/manager.availability'
-import { Route as ManagerAssignmentRouteImport } from './routes/manager.assignment'
 
 const StaffRoute = StaffRouteImport.update({
   id: '/staff',
@@ -64,11 +60,6 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const StaffSwapsRoute = StaffSwapsRouteImport.update({
-  id: '/swaps',
-  path: '/swaps',
-  getParentRoute: () => StaffRoute,
 } as any)
 const StaffShiftsRoute = StaffShiftsRouteImport.update({
   id: '/shifts',
@@ -109,16 +100,6 @@ const StaffAvailabilityRoute = StaffAvailabilityRouteImport.update({
   id: '/availability',
   path: '/availability',
   getParentRoute: () => StaffRoute,
-} as any)
-const ManagerUsersRoute = ManagerUsersRouteImport.update({
-  id: '/users',
-  path: '/users',
-  getParentRoute: () => ManagerRoute,
-} as any)
-const ManagerSwapsRoute = ManagerSwapsRouteImport.update({
-  id: '/swaps',
-  path: '/swaps',
-  getParentRoute: () => ManagerRoute,
 } as any)
 const ManagerStaffRoute = ManagerStaffRouteImport.update({
   id: '/staff',
@@ -185,11 +166,6 @@ const ManagerAvailabilityRoute = ManagerAvailabilityRouteImport.update({
   path: '/availability',
   getParentRoute: () => ManagerRoute,
 } as any)
-const ManagerAssignmentRoute = ManagerAssignmentRouteImport.update({
-  id: '/assignment',
-  path: '/assignment',
-  getParentRoute: () => ManagerRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -197,7 +173,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRouteWithChildren
   '/staff': typeof StaffRouteWithChildren
-  '/manager/assignment': typeof ManagerAssignmentRoute
   '/manager/availability': typeof ManagerAvailabilityRoute
   '/manager/conflicts': typeof ManagerConflictsRoute
   '/manager/dashboard': typeof ManagerDashboardRoute
@@ -211,8 +186,6 @@ export interface FileRoutesByFullPath {
   '/manager/settings': typeof ManagerSettingsRoute
   '/manager/shift-templates': typeof ManagerShiftTemplatesRoute
   '/manager/staff': typeof ManagerStaffRoute
-  '/manager/swaps': typeof ManagerSwapsRoute
-  '/manager/users': typeof ManagerUsersRoute
   '/staff/availability': typeof StaffAvailabilityRoute
   '/staff/dashboard': typeof StaffDashboardRoute
   '/staff/help': typeof StaffHelpRoute
@@ -221,7 +194,6 @@ export interface FileRoutesByFullPath {
   '/staff/profile': typeof StaffProfileRoute
   '/staff/request-leave': typeof StaffRequestLeaveRoute
   '/staff/shifts': typeof StaffShiftsRoute
-  '/staff/swaps': typeof StaffSwapsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -229,7 +201,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRouteWithChildren
   '/staff': typeof StaffRouteWithChildren
-  '/manager/assignment': typeof ManagerAssignmentRoute
   '/manager/availability': typeof ManagerAvailabilityRoute
   '/manager/conflicts': typeof ManagerConflictsRoute
   '/manager/dashboard': typeof ManagerDashboardRoute
@@ -243,8 +214,6 @@ export interface FileRoutesByTo {
   '/manager/settings': typeof ManagerSettingsRoute
   '/manager/shift-templates': typeof ManagerShiftTemplatesRoute
   '/manager/staff': typeof ManagerStaffRoute
-  '/manager/swaps': typeof ManagerSwapsRoute
-  '/manager/users': typeof ManagerUsersRoute
   '/staff/availability': typeof StaffAvailabilityRoute
   '/staff/dashboard': typeof StaffDashboardRoute
   '/staff/help': typeof StaffHelpRoute
@@ -253,7 +222,6 @@ export interface FileRoutesByTo {
   '/staff/profile': typeof StaffProfileRoute
   '/staff/request-leave': typeof StaffRequestLeaveRoute
   '/staff/shifts': typeof StaffShiftsRoute
-  '/staff/swaps': typeof StaffSwapsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -262,7 +230,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRouteWithChildren
   '/staff': typeof StaffRouteWithChildren
-  '/manager/assignment': typeof ManagerAssignmentRoute
   '/manager/availability': typeof ManagerAvailabilityRoute
   '/manager/conflicts': typeof ManagerConflictsRoute
   '/manager/dashboard': typeof ManagerDashboardRoute
@@ -276,8 +243,6 @@ export interface FileRoutesById {
   '/manager/settings': typeof ManagerSettingsRoute
   '/manager/shift-templates': typeof ManagerShiftTemplatesRoute
   '/manager/staff': typeof ManagerStaffRoute
-  '/manager/swaps': typeof ManagerSwapsRoute
-  '/manager/users': typeof ManagerUsersRoute
   '/staff/availability': typeof StaffAvailabilityRoute
   '/staff/dashboard': typeof StaffDashboardRoute
   '/staff/help': typeof StaffHelpRoute
@@ -286,7 +251,6 @@ export interface FileRoutesById {
   '/staff/profile': typeof StaffProfileRoute
   '/staff/request-leave': typeof StaffRequestLeaveRoute
   '/staff/shifts': typeof StaffShiftsRoute
-  '/staff/swaps': typeof StaffSwapsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -296,7 +260,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/manager'
     | '/staff'
-    | '/manager/assignment'
     | '/manager/availability'
     | '/manager/conflicts'
     | '/manager/dashboard'
@@ -310,8 +273,6 @@ export interface FileRouteTypes {
     | '/manager/settings'
     | '/manager/shift-templates'
     | '/manager/staff'
-    | '/manager/swaps'
-    | '/manager/users'
     | '/staff/availability'
     | '/staff/dashboard'
     | '/staff/help'
@@ -320,7 +281,6 @@ export interface FileRouteTypes {
     | '/staff/profile'
     | '/staff/request-leave'
     | '/staff/shifts'
-    | '/staff/swaps'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -328,7 +288,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/manager'
     | '/staff'
-    | '/manager/assignment'
     | '/manager/availability'
     | '/manager/conflicts'
     | '/manager/dashboard'
@@ -342,8 +301,6 @@ export interface FileRouteTypes {
     | '/manager/settings'
     | '/manager/shift-templates'
     | '/manager/staff'
-    | '/manager/swaps'
-    | '/manager/users'
     | '/staff/availability'
     | '/staff/dashboard'
     | '/staff/help'
@@ -352,7 +309,6 @@ export interface FileRouteTypes {
     | '/staff/profile'
     | '/staff/request-leave'
     | '/staff/shifts'
-    | '/staff/swaps'
   id:
     | '__root__'
     | '/'
@@ -360,7 +316,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/manager'
     | '/staff'
-    | '/manager/assignment'
     | '/manager/availability'
     | '/manager/conflicts'
     | '/manager/dashboard'
@@ -374,8 +329,6 @@ export interface FileRouteTypes {
     | '/manager/settings'
     | '/manager/shift-templates'
     | '/manager/staff'
-    | '/manager/swaps'
-    | '/manager/users'
     | '/staff/availability'
     | '/staff/dashboard'
     | '/staff/help'
@@ -384,7 +337,6 @@ export interface FileRouteTypes {
     | '/staff/profile'
     | '/staff/request-leave'
     | '/staff/shifts'
-    | '/staff/swaps'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -431,13 +383,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/staff/swaps': {
-      id: '/staff/swaps'
-      path: '/swaps'
-      fullPath: '/staff/swaps'
-      preLoaderRoute: typeof StaffSwapsRouteImport
-      parentRoute: typeof StaffRoute
     }
     '/staff/shifts': {
       id: '/staff/shifts'
@@ -494,20 +439,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/staff/availability'
       preLoaderRoute: typeof StaffAvailabilityRouteImport
       parentRoute: typeof StaffRoute
-    }
-    '/manager/users': {
-      id: '/manager/users'
-      path: '/users'
-      fullPath: '/manager/users'
-      preLoaderRoute: typeof ManagerUsersRouteImport
-      parentRoute: typeof ManagerRoute
-    }
-    '/manager/swaps': {
-      id: '/manager/swaps'
-      path: '/swaps'
-      fullPath: '/manager/swaps'
-      preLoaderRoute: typeof ManagerSwapsRouteImport
-      parentRoute: typeof ManagerRoute
     }
     '/manager/staff': {
       id: '/manager/staff'
@@ -600,18 +531,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ManagerAvailabilityRouteImport
       parentRoute: typeof ManagerRoute
     }
-    '/manager/assignment': {
-      id: '/manager/assignment'
-      path: '/assignment'
-      fullPath: '/manager/assignment'
-      preLoaderRoute: typeof ManagerAssignmentRouteImport
-      parentRoute: typeof ManagerRoute
-    }
   }
 }
 
 interface ManagerRouteChildren {
-  ManagerAssignmentRoute: typeof ManagerAssignmentRoute
   ManagerAvailabilityRoute: typeof ManagerAvailabilityRoute
   ManagerConflictsRoute: typeof ManagerConflictsRoute
   ManagerDashboardRoute: typeof ManagerDashboardRoute
@@ -625,12 +548,9 @@ interface ManagerRouteChildren {
   ManagerSettingsRoute: typeof ManagerSettingsRoute
   ManagerShiftTemplatesRoute: typeof ManagerShiftTemplatesRoute
   ManagerStaffRoute: typeof ManagerStaffRoute
-  ManagerSwapsRoute: typeof ManagerSwapsRoute
-  ManagerUsersRoute: typeof ManagerUsersRoute
 }
 
 const ManagerRouteChildren: ManagerRouteChildren = {
-  ManagerAssignmentRoute: ManagerAssignmentRoute,
   ManagerAvailabilityRoute: ManagerAvailabilityRoute,
   ManagerConflictsRoute: ManagerConflictsRoute,
   ManagerDashboardRoute: ManagerDashboardRoute,
@@ -644,8 +564,6 @@ const ManagerRouteChildren: ManagerRouteChildren = {
   ManagerSettingsRoute: ManagerSettingsRoute,
   ManagerShiftTemplatesRoute: ManagerShiftTemplatesRoute,
   ManagerStaffRoute: ManagerStaffRoute,
-  ManagerSwapsRoute: ManagerSwapsRoute,
-  ManagerUsersRoute: ManagerUsersRoute,
 }
 
 const ManagerRouteWithChildren =
@@ -660,7 +578,6 @@ interface StaffRouteChildren {
   StaffProfileRoute: typeof StaffProfileRoute
   StaffRequestLeaveRoute: typeof StaffRequestLeaveRoute
   StaffShiftsRoute: typeof StaffShiftsRoute
-  StaffSwapsRoute: typeof StaffSwapsRoute
 }
 
 const StaffRouteChildren: StaffRouteChildren = {
@@ -672,7 +589,6 @@ const StaffRouteChildren: StaffRouteChildren = {
   StaffProfileRoute: StaffProfileRoute,
   StaffRequestLeaveRoute: StaffRequestLeaveRoute,
   StaffShiftsRoute: StaffShiftsRoute,
-  StaffSwapsRoute: StaffSwapsRoute,
 }
 
 const StaffRouteWithChildren = StaffRoute._addFileChildren(StaffRouteChildren)

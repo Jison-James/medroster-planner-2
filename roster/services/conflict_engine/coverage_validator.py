@@ -1,9 +1,19 @@
-from ...models import Roster, RosterAssignment, Conflict, ShiftTemplate
+from roster.models import Roster, RosterAssignment, Conflict, ShiftTemplate
 from .suggestion_engine import SuggestionEngine
 from typing import List, Dict
 from datetime import timedelta
 
 class CoverageValidator:
+    def _normalize_role_name(self, role_name: str) -> str:
+        from roster.models import ClinicalRole
+        if role_name in ['Doctors', 'Doctor']:
+            return ClinicalRole.DOCTOR
+        elif role_name in ['Nurses', 'Nurse']:
+            return ClinicalRole.NURSE
+        elif role_name in ['Staff', 'Support Staff']:
+            return ClinicalRole.SUPPORT_STAFF
+        return ClinicalRole.NURSE
+
     def validate(self, roster: Roster) -> List[Conflict]:
         conflicts = []
         
@@ -50,7 +60,8 @@ class CoverageValidator:
             understaffed_roles = []
             overstaffed_roles = []
             
-            for role, required in reqs.items():
+            for raw_role, required in reqs.items():
+                role = self._normalize_role_name(raw_role)
                 actual = role_counts.get(role, 0)
                 if actual < required:
                     understaffed_roles.append((role, required, actual))
@@ -59,8 +70,8 @@ class CoverageValidator:
                     
             template = ShiftTemplate.objects.filter(shift_type=s_type).first()
             
-            # Group understaffed
-            if understaffed_roles:
+            # Group understaffed -> Now one per role!
+            for role, req, act in understaffed_roles:
                 conflict = Conflict(
                     id=None,
                     roster=roster,
@@ -72,13 +83,13 @@ class CoverageValidator:
                     status='Open'
                 )
                 SuggestionEngine.populate_details(conflict, meta={
-                    'roles': understaffed_roles,
+                    'roles': [(role, req, act)],
                     'shift_name': s_type.capitalize()
                 })
                 conflicts.append(conflict)
                 
-            # Group overstaffed
-            if overstaffed_roles:
+            # Group overstaffed -> Now one per role!
+            for role, req, act in overstaffed_roles:
                 conflict = Conflict(
                     id=None,
                     roster=roster,
@@ -90,7 +101,7 @@ class CoverageValidator:
                     status='Open'
                 )
                 SuggestionEngine.populate_details(conflict, meta={
-                    'roles': overstaffed_roles,
+                    'roles': [(role, req, act)],
                     'shift_name': s_type.capitalize()
                 })
                 conflicts.append(conflict)

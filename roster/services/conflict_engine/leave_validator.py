@@ -1,4 +1,4 @@
-from ...models import Roster, RosterAssignment, Conflict, RosterRule, LeaveRequest
+from roster.models import Roster, RosterAssignment, Conflict, RosterRule, LeaveRequest
 from .assignment_validator import BaseAssignmentValidator
 from .suggestion_engine import SuggestionEngine
 from typing import List

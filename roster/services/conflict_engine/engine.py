@@ -1,21 +1,21 @@
-from ...models import Roster, RosterAssignment, Conflict, RosterRule
+import uuid
+from typing import List, Dict, Set
+from collections import defaultdict
+from django.db import transaction
+from roster.models import Roster, RosterAssignment, Conflict, RosterRule, ConflictStatus
 from .leave_validator import LeaveValidator
-from .availability_validator import AvailabilityValidator
 from .duplicate_validator import DuplicateValidator
 from .rest_validator import RestValidator
 from .overtime_validator import OvertimeValidator
 from .consecutive_validator import ConsecutiveValidator
 from .night_shift_validator import NightShiftValidator
 from .coverage_validator import CoverageValidator
-from django.db import transaction
-from typing import List
 from datetime import date
 
 class ConflictEngineService:
     def __init__(self):
         self.validators = [
             LeaveValidator(),
-            AvailabilityValidator(),
             DuplicateValidator(),
             RestValidator(),
             OvertimeValidator(),
@@ -28,27 +28,30 @@ class ConflictEngineService:
     def run(self, roster: Roster):
         """
         Audits a generated roster. Resolves fixed conflicts and flags new ones.
+        Scans all assignments in the roster efficiently.
         """
-        # Load rules
         rules = RosterRule.objects.first()
         if not rules:
             rules = RosterRule.objects.create()
 
-        # Load existing conflicts
         existing_conflicts = list(Conflict.objects.filter(roster=roster))
-        
-        # Load all assignments
         assignments = list(RosterAssignment.objects.filter(roster=roster).select_related('staff__user', 'shift'))
         
-        # Run individual assignment validators
-        detected_conflicts: List[Conflict] = []
+        # Optimize O(N^2) lookup to O(1) dictionary lookup
+        assignments_by_staff = defaultdict(list)
         for a in assignments:
-            other_assignments = [x for x in assignments if x.staff_id == a.staff_id]
+            assignments_by_staff[a.staff_id].append(a)
+        
+        detected_conflicts: List[Conflict] = []
+        
+        # Individual validations
+        for a in assignments:
+            other_assignments = assignments_by_staff[a.staff_id]
             for validator in self.validators:
                 res = validator.validate(roster, a, other_assignments, rules)
                 detected_conflicts.extend(res)
 
-        # Run coverage validator
+        # Coverage validations
         coverage_res = self.coverage_validator.validate(roster)
         detected_conflicts.extend(coverage_res)
 
@@ -57,96 +60,132 @@ class ConflictEngineService:
     @transaction.atomic
     def run_for_shift(self, roster: Roster, target_date: date, shift_type: str):
         """
-        Revalidates conflicts on a specific date/shift after manual edit.
+        Revalidates conflicts ONLY for a specific date/shift and the employees 
+        currently or previously assigned to it, avoiding full-roster queries.
         """
         rules = RosterRule.objects.first()
         if not rules:
             rules = RosterRule.objects.create()
 
-        # All conflicts on this date and shift
+        # 1. Fetch existing conflicts for this slot
         existing_conflicts = list(Conflict.objects.filter(
             roster=roster,
             date=target_date,
             shift__shift_type=shift_type
         ))
 
-        # Query all assignments for that date (and surrounding days to calculate weekly/monthly/consecutive)
-        assignments = list(RosterAssignment.objects.filter(roster=roster).select_related('staff__user', 'shift'))
+        # 2. Identify all affected staff
+        affected_staff_ids: Set[str] = set()
         
-        # Identify assignments on this specific slot
-        slot_assignments = [a for a in assignments if a.shift_date == target_date and a.shift and a.shift.shift_type == shift_type]
+        # Current employees assigned to this slot
+        slot_assignments = list(RosterAssignment.objects.filter(
+            roster=roster, shift_date=target_date, shift__shift_type=shift_type
+        ).select_related('staff__user', 'shift'))
+        
+        for a in slot_assignments:
+            if a.staff_id:
+                affected_staff_ids.add(a.staff_id)
+                
+        # Employees who had a conflict here previously (e.g. were removed from shift)
+        for c in existing_conflicts:
+            if c.employee_id:
+                affected_staff_ids.add(c.employee_id)
+
+        # 3. Fetch all assignments for ONLY the affected employees
+        if affected_staff_ids:
+            affected_assignments = list(RosterAssignment.objects.filter(
+                roster=roster, staff_id__in=affected_staff_ids
+            ).select_related('staff__user', 'shift'))
+        else:
+            affected_assignments = []
+            
+        assignments_by_staff = defaultdict(list)
+        for a in affected_assignments:
+            assignments_by_staff[a.staff_id].append(a)
 
         detected_conflicts: List[Conflict] = []
-        # Validate each assignment in this specific slot
+        
+        # Validate only the slot's active assignments
         for a in slot_assignments:
-            other_assignments = [x for x in assignments if x.staff_id == a.staff_id]
+            other_assignments = assignments_by_staff[a.staff_id]
             for validator in self.validators:
                 res = validator.validate(roster, a, other_assignments, rules)
                 detected_conflicts.extend(res)
 
-        # Validate coverage for this slot
+        # Validate coverage for the entire roster, then filter to this slot
         cov_res = self.coverage_validator.validate(roster)
-        # Filter coverage conflicts to this specific slot
         slot_cov_res = [c for c in cov_res if c.date == target_date and c.shift and c.shift.shift_type == shift_type]
         detected_conflicts.extend(slot_cov_res)
 
-        self._reconcile_conflicts(roster, existing_conflicts, detected_conflicts, slot_only=True)
+        self._reconcile_conflicts(roster, existing_conflicts, detected_conflicts)
 
-    def _reconcile_conflicts(self, roster: Roster, existing_conflicts: List[Conflict], detected_conflicts: List[Conflict], slot_only=False):
-        # We match conflicts by: date, shift_template, employee (if present), conflict_type
-        # If an existing conflict matches a detected one, it is still active.
-        # If it is NOT detected, it is resolved.
-        # If a detected conflict is NOT in existing, we create it.
-        
-        # Helper to compute match key
-        def make_key(c: Conflict):
-            emp_id = str(c.employee.id) if c.employee else 'none'
-            shift_id = str(c.shift.id) if c.shift else 'none'
+    def _reconcile_conflicts(self, roster: Roster, existing_conflicts: List[Conflict], detected_conflicts: List[Conflict]):
+        """
+        Reconciles existing conflicts against newly detected conflicts using robust 
+        signature arrays, preserving duplicate conflict entries accurately and updating state.
+        """
+        def make_signature(c: Conflict) -> str:
+            emp_id = str(c.employee_id) if c.employee_id else 'none'
+            shift_id = str(c.shift_id) if c.shift_id else 'none'
             date_str = c.date.strftime('%Y-%m-%d') if c.date else 'none'
-            return (date_str, shift_id, emp_id, c.conflict_type)
+            return f"{date_str}_{shift_id}_{emp_id}_{c.conflict_type}_{c.title}"
 
-        detected_by_key = {make_key(c): c for c in detected_conflicts}
-        existing_by_key = {make_key(c): c for c in existing_conflicts}
+        detected_by_sig = defaultdict(list)
+        for c in detected_conflicts:
+            detected_by_sig[make_signature(c)].append(c)
+
+        existing_by_sig = defaultdict(list)
+        for c in existing_conflicts:
+            existing_by_sig[make_signature(c)].append(c)
 
         to_create = []
         to_save = []
 
-        # Find conflicts to resolve
-        for key, existing in existing_by_key.items():
-            # If it's already resolved or ignored, keep it as is
-            if existing.status in ['Resolved', 'Ignored']:
-                continue
-                
-            if key not in detected_by_key:
-                existing.status = 'Resolved'
-                existing.resolved = True
-                to_save.append(existing)
+        # Process existing signatures against detected arrays
+        for sig, existing_list in existing_by_sig.items():
+            detected_list = detected_by_sig.get(sig, [])
+            
+            for i in range(len(existing_list)):
+                ex = existing_list[i]
+                if i < len(detected_list):
+                    det = detected_list[i]
+                    # Retain and update active conflict
+                    if ex.status == ConflictStatus.RESOLVED:
+                        ex.status = ConflictStatus.OPEN
+                        ex.resolved = False
+                        ex.resolved_at = None
+                        
+                    ex.description = det.description
+                    ex.reason = det.reason
+                    ex.actual_value = det.actual_value
+                    ex.expected_value = det.expected_value
+                    ex.suggested_resolution = det.suggested_resolution
+                    to_save.append(ex)
+                else:
+                    # Resolve orphan conflict
+                    if ex.status not in [ConflictStatus.RESOLVED, ConflictStatus.IGNORED]:
+                        ex.status = ConflictStatus.RESOLVED
+                        ex.resolved = True
+                        to_save.append(ex)
 
-        # Find new conflicts to create
-        for key, detected in detected_by_key.items():
-            if key not in existing_by_key:
-                # Need to save the conflict instance to generate id
-                to_create.append(detected)
-            else:
-                existing = existing_by_key[key]
-                # If a resolved conflict is detected again, open it again
-                if existing.status == 'Resolved':
-                    existing.status = 'Open'
-                    existing.resolved = False
-                    existing.resolved_at = None
-                    to_save.append(existing)
+        # Process newly detected signatures that exceed existing counts
+        for sig, detected_list in detected_by_sig.items():
+            existing_list = existing_by_sig.get(sig, [])
+            
+            for i in range(len(existing_list), len(detected_list)):
+                det = detected_list[i]
+                
+                # Generate UUID in memory to avoid post-save secondary queries
+                new_id = uuid.uuid4()
+                det.id = new_id
+                
+                if det.planning_board_redirect and 'conflict=' not in det.planning_board_redirect:
+                    det.planning_board_redirect += f"&conflict={new_id}"
+                    
+                to_create.append(det)
 
         if to_create:
             Conflict.objects.bulk_create(to_create)
-            # Re-fetch to update planning_board_redirect with generated UUID if needed,
-            # but since SuggestionEngine computes planning_board_redirect, let's update it with actual ID!
-            # Since planning_board_redirect is like `/planning-board?date=...&conflict=uuid`,
-            # we should update planning_board_redirect with the saved ID.
-            created_instances = Conflict.objects.filter(roster=roster, status='Open')
-            for c in created_instances:
-                if c.planning_board_redirect and 'conflict=' not in c.planning_board_redirect:
-                    c.planning_board_redirect += f"&conflict={c.id}"
-                    c.save()
 
         if to_save:
             for c in to_save:

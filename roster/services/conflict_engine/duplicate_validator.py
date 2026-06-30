@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from ...models import Roster, RosterAssignment, Conflict, RosterRule
+from roster.models import Roster, RosterAssignment, Conflict, RosterRule
 from .assignment_validator import BaseAssignmentValidator
 from .suggestion_engine import SuggestionEngine
 from typing import List

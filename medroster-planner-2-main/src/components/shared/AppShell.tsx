@@ -38,13 +38,10 @@ const managerNav: NavGroup[] = [
     { label: "Generate Roster", to: "/manager/generate", icon: CalendarPlus },
     { label: "Roster Viewer", to: "/manager/roster", icon: CalendarRange },
     { label: "Planning Board", to: "/manager/planning", icon: ClipboardCheck },
-    { label: "Shift Assignment", to: "/manager/assignment", icon: Repeat },
-    { label: "Shift Swap Requests", to: "/manager/swaps", icon: Repeat },
     { label: "Conflict Center", to: "/manager/conflicts", icon: AlertTriangle },
   ]},
 
   { label: "Administration", items: [
-    { label: "User Management", to: "/manager/users", icon: UserCog },
     { label: "Settings", to: "/manager/settings", icon: SettingsIcon },
   ]},
   { label: "Support", items: [
@@ -61,9 +58,6 @@ const staffNav: NavGroup[] = [
   { label: "Leave", items: [
     { label: "Request Leave", to: "/staff/request-leave", icon: ClipboardList },
     { label: "Leave Status", to: "/staff/leave-status", icon: ShieldCheck },
-  ]},
-  { label: "Shift Management", items: [
-    { label: "Shift Swap Requests", to: "/staff/swaps", icon: Repeat },
   ]},
   { label: "Account", items: [
     { label: "Notifications", to: "/staff/notifications", icon: Bell },
