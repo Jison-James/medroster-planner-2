@@ -147,11 +147,6 @@ class RosterViewSet(viewsets.ModelViewSet):
             service = SchedulerService()
             roster, created_shifts = service.generate(start_date, end_date, requirements)
 
-            # Run Conflict Engine AFTER saving the roster and assignments
-            from .services.conflict_engine.engine import ConflictEngineService
-            conflict_engine = ConflictEngineService()
-            conflict_engine.run(roster)
-
             # Log Activity
             ActivityLog.objects.create(
                 action='Roster_Generated',
@@ -190,6 +185,11 @@ class RosterViewSet(viewsets.ModelViewSet):
 
         # Update all associated shifts status
         RosterAssignment.objects.filter(roster=roster).update(status='Scheduled')
+
+        # Run Conflict Detection ONLY after publishing
+        from .services.conflict_engine.engine import ConflictEngineService
+        conflict_engine = ConflictEngineService()
+        conflict_engine.run(roster)
 
         # Notify all active staff members
         staff_profiles = StaffProfile.objects.exclude(user__role='manager')
@@ -241,20 +241,23 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
             return self.queryset.none()
 
         roster_id = self.request.query_params.get('roster')
-        if roster_id:
-            qs = self.queryset.filter(roster_id=roster_id)
-        else:
-            # Fallback for when frontend hasn't supplied roster yet, pick latest published to avoid sending entire DB.
-            from .models import Roster
-            latest = Roster.objects.filter(status='Published').order_by('-created_at').first()
-            if latest:
-                qs = self.queryset.filter(roster_id=latest.id)
-            else:
-                qs = self.queryset.none()
+        if not roster_id:
+            return self.queryset.none()
+
+        qs = self.queryset.filter(roster_id=roster_id)
 
         if user.role == 'manager':
             return qs
         return qs.filter(staff__user=user)
+
+    def list(self, request, *args, **kwargs):
+        roster_id = request.query_params.get('roster')
+        if not roster_id:
+            return Response(
+                {'error': 'roster query parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().list(request, *args, **kwargs)
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
@@ -281,13 +284,22 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
             self._revalidate_conflicts(assignment)
             return Response(self.get_serializer(assignment).data)
             
-        # Support drag-and-drop format: {"staffId": "...", "date": "...", "shift": "..."}
+        # Support drag-and-drop format: {"staffId": "...", "date": "...", "shift": "...", "rosterId": "..."}
         staff_id = request.data.get('staffId')
         date_str = request.data.get('date')
         shift_type = request.data.get('shift')
+        roster_id = request.data.get('rosterId')
         
         if staff_id and date_str and shift_type:
+            if not roster_id:
+                return Response({'error': 'rosterId is required'}, status=status.HTTP_400_BAD_REQUEST)
+
             from .models import StaffProfile, ShiftTemplate, Roster
+            try:
+                roster = Roster.objects.get(id=roster_id)
+            except Roster.DoesNotExist:
+                return Response({'error': 'Roster not found'}, status=404)
+
             try:
                 staff_member = StaffProfile.objects.get(user_id=staff_id)
             except StaffProfile.DoesNotExist:
@@ -302,20 +314,6 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
                 target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
             except ValueError:
                 return Response({'error': 'Invalid date format'}, status=400)
-                
-            # Find active roster covering this date
-            roster = Roster.objects.filter(
-                start_date__lte=target_date,
-                end_date__gte=target_date
-            ).order_by('status', 'created_at').last()
-            
-            if not roster:
-                roster = Roster.objects.create(
-                    name=f"Roster ({target_date})",
-                    start_date=target_date,
-                    end_date=target_date,
-                    status='Draft'
-                )
                 
             assignment = RosterAssignment.objects.filter(
                 roster=roster,
@@ -451,17 +449,18 @@ class ConflictViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         roster_id = self.request.query_params.get('roster')
-        if roster_id:
-            qs = self.queryset.filter(roster_id=roster_id)
-        else:
-            # Fallback: only pick the latest published
-            from .models import Roster
-            latest = Roster.objects.filter(status='Published').order_by('-created_at').first()
-            if latest:
-                qs = self.queryset.filter(roster_id=latest.id)
-            else:
-                qs = self.queryset.none()
-        return qs
+        if not roster_id:
+            return self.queryset.none()
+        return self.queryset.filter(roster_id=roster_id)
+
+    def list(self, request, *args, **kwargs):
+        roster_id = request.query_params.get('roster')
+        if not roster_id:
+            return Response(
+                {'error': 'roster query parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().list(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'], permission_classes=[IsManager])
     def ignore(self, request, pk=None):

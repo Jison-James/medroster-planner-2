@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, useEffect, useCallback, type ReactNode } from "react";
 import { 
   staffService, leaveService, rosterService, swapService, 
   settingsService, conflictService, notificationService, shiftTemplateService 
@@ -43,6 +43,7 @@ interface AppState {
   setRostersList: React.Dispatch<React.SetStateAction<any[]>>;
   activeRosterId: string | null;
   setActiveRosterId: React.Dispatch<React.SetStateAction<string | null>>;
+  refreshRosterData: () => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -67,6 +68,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setRole = (r: Role | null) => setRoleState(r);
   const setCurrentUserId = (id: string) => setCurrentUserIdState(id);
+
+  // Force-refresh shifts and conflicts for the current activeRosterId
+  const refreshRosterData = useCallback(() => {
+    if (activeRosterId) {
+      rosterService.listShifts(activeRosterId).then(data => { setRoster(data || []); });
+      conflictService.list(activeRosterId).then(data => { setConflicts(data || []); });
+    }
+    // Also refresh the rosters list
+    rosterService.list().then(data => { if (data?.length) setRostersList(data); });
+  }, [activeRosterId]);
 
   // Load baseline data on role assignment
   useEffect(() => {
@@ -117,8 +128,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       notifications, setNotifications, users, setUsers,
       rules, setRules, templates, setTemplates,
       rostersList, setRostersList, activeRosterId, setActiveRosterId,
+      refreshRosterData,
     }),
-    [role, currentUserId, staff, leaves, swaps, roster, conflicts, notifications, users, rules, templates, rostersList, activeRosterId],
+    [role, currentUserId, staff, leaves, swaps, roster, conflicts, notifications, users, rules, templates, rostersList, activeRosterId, refreshRosterData],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -19,7 +19,7 @@ export const Route = createFileRoute("/manager/generate")({ component: GenerateR
 const steps = ["Select period", "Staff requirements", "Generate", "Preview", "Publish"];
 
 function GenerateRoster() {
-  const { staff, setRoster, setConflicts, setActiveRosterId, setRostersList } = useApp();
+  const { staff, setRoster, setConflicts, setActiveRosterId, setRostersList, refreshRosterData } = useApp();
   const [step, setStep] = useState(0);
   const [period, setPeriod] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
@@ -69,12 +69,9 @@ function GenerateRoster() {
     try {
       await rosterService.publish(generatedRoster.id);
       
-      // Update rosters list in context to reflect published state
-      rosterService.list().then(data => {
-        if (data?.length) setRostersList(data);
-      });
-      // Context will automatically refresh shifts/conflicts because activeRosterId is still the same but now published
-
+      // Force-refresh all roster data (shifts, conflicts, rosters list)
+      // since activeRosterId doesn't change, the useEffect won't re-trigger
+      refreshRosterData();
 
       setPublished(true);
       toast.success("Roster published");

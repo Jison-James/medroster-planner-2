@@ -144,16 +144,18 @@ function Planning() {
     });
 
     try {
-      const res = await rosterService.assign({ staffId, date: targetDate, shift: target });
+      const res = await rosterService.assign({ staffId, date: targetDate, shift: target, rosterId: activeRosterId });
       
       setRoster((prevRoster) => {
         const cleaned = prevRoster.filter(r => !(r.date === targetDate && r.staffId === staffId));
         return [...cleaned, res];
       });
 
-      // Refetch conflicts to update warnings in real-time
-      const updatedConflicts = await conflictService.list();
-      setConflicts(updatedConflicts);
+      // Refetch conflicts scoped to the active roster
+      if (activeRosterId) {
+        const updatedConflicts = await conflictService.list(activeRosterId);
+        setConflicts(updatedConflicts);
+      }
 
       toast.success(`Moved to ${shiftMeta[target].label} shift`);
     } catch (err) {

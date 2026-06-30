@@ -42,23 +42,46 @@ class SchedulerService:
                 reqs = requirements.get(s_type, {})
                 for role_name, quota in reqs.items():
                     candidates = pool.get_candidates(role_name)
-                    
                     assigned_count = 0
-                    scored_candidates = []
                     
-                    for staff in candidates:
-                        if constraints.is_valid(staff, current_day, template, context):
-                            score = scorer.score(staff, current_day, template)
-                            scored_candidates.append((score, staff))
+                    while assigned_count < quota:
+                        scored_candidates = []
+                        
+                        for staff in candidates:
+                            is_hard_valid, soft_violations = constraints.evaluate(staff, current_day, template, context)
+                            if is_hard_valid:
+                                score = scorer.score(staff, current_day, template)
+                                scored_candidates.append((soft_violations, score, staff))
+                                
+                        if not scored_candidates:
+                            # Stage 3: UNDERSTAFFED
+                            from ...models import Conflict
+                            from ..conflict_engine.suggestion_engine import SuggestionEngine
                             
-                    scored_candidates.sort(key=lambda x: x[0], reverse=True)
-                    
-                    for score, staff in scored_candidates:
-                        if assigned_count >= quota:
+                            conflict = Conflict(
+                                roster=roster,
+                                conflict_type='UNDERSTAFFED_SHIFT',
+                                severity='High',
+                                status='Open',
+                                date=current_day,
+                                shift=template
+                            )
+                            SuggestionEngine.populate_details(conflict, meta={
+                                'roles': [(role_name, quota, assigned_count)],
+                                'shift_name': s_type.capitalize()
+                            })
+                            conflict.save()
                             break
                             
-                        assigner.create_assignment(roster, staff, current_day, template)
+                        # Sort by soft_violations ASCENDING (prefer 0 violations), then score DESCENDING
+                        scored_candidates.sort(key=lambda x: (x[0], -x[1]))
+                        
+                        best_staff = scored_candidates[0][2]
+                        assigner.create_assignment(roster, best_staff, current_day, template)
                         assigned_count += 1
+                        
+                        # Remove the assigned candidate so they aren't picked again for the same shift quota
+                        candidates.remove(best_staff)
 
             current_day += timedelta(days=1)
 
