@@ -34,7 +34,7 @@ const conflictMeta: Record<string, { label: string; icon: any; color: string; bg
 };
 
 function Conflicts() {
-  const { conflicts, setConflicts, staff } = useApp();
+  const { conflicts, setConflicts, staff, rostersList, activeRosterId, setActiveRosterId } = useApp();
   const navigate = useNavigate();
 
   // Filter States
@@ -167,7 +167,23 @@ function Conflicts() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6">
-      <PageHeader title="Roster Audit Module" description="Spot, review and reassign clinical shifts to solve schedule violations." />
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <PageHeader title="Roster Audit Module" description="Spot, review and reassign clinical shifts to solve schedule violations." />
+        <div className="pt-2">
+          <select
+            className="flex h-9 w-56 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            value={activeRosterId || ""}
+            onChange={(e) => setActiveRosterId(e.target.value)}
+          >
+            <option value="" disabled>Select roster</option>
+            {rostersList.map((r: any) => (
+              <option key={r.id} value={r.id}>
+                {r.name} ({r.status})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       {/* Top Statistics Summary */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">

@@ -83,7 +83,7 @@ function Column({ shift, isHighlighted, children }: ColumnProps) {
 }
 
 function Planning() {
-  const { conflicts, setConflicts, staff, roster, setRoster } = useApp();
+  const { conflicts, setConflicts, staff, roster, setRoster, rostersList, activeRosterId, setActiveRosterId } = useApp();
   
   // Parse Query Parameters
   const params = new URLSearchParams(window.location.search);
@@ -197,11 +197,25 @@ function Planning() {
               <p className="text-sm font-bold text-foreground">{format(new Date(targetDate), "EEEE, dd MMMM yyyy")}</p>
             </div>
           </div>
-          {dateParam && (
-            <Button variant="outline" size="sm" className="rounded-xl border-border" onClick={() => window.location.href = '/manager/planning'}>
-              Reset to Today
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            <select
+              className="flex h-9 w-56 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              value={activeRosterId || ""}
+              onChange={(e) => setActiveRosterId(e.target.value)}
+            >
+              <option value="" disabled>Select roster</option>
+              {rostersList.map((r: any) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} ({r.status})
+                </option>
+              ))}
+            </select>
+            {dateParam && (
+              <Button variant="outline" size="sm" className="rounded-xl border-border" onClick={() => window.location.href = '/manager/planning'}>
+                Reset to Today
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 

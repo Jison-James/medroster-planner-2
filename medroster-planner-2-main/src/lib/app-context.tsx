@@ -39,6 +39,10 @@ interface AppState {
   setRules: React.Dispatch<React.SetStateAction<RosterRules>>;
   templates: ShiftTemplate[];
   setTemplates: React.Dispatch<React.SetStateAction<ShiftTemplate[]>>;
+  rostersList: any[];
+  setRostersList: React.Dispatch<React.SetStateAction<any[]>>;
+  activeRosterId: string | null;
+  setActiveRosterId: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -58,22 +62,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [rules, setRules] = useState<RosterRules>({} as RosterRules);
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
+  const [rostersList, setRostersList] = useState<any[]>([]);
+  const [activeRosterId, setActiveRosterId] = useState<string | null>(null);
 
   const setRole = (r: Role | null) => setRoleState(r);
   const setCurrentUserId = (id: string) => setCurrentUserIdState(id);
 
+  // Load baseline data on role assignment
   useEffect(() => {
     if (role) {
       staffService.list().then(data => { if (data?.length) setStaff(data); });
       leaveService.list().then(data => { if (data?.length) setLeaves(data); });
       swapService.list().then(data => { if (data?.length) setSwaps(data); });
-      rosterService.listShifts().then(data => { if (data?.length) setRoster(data); });
-      conflictService.list().then(data => { if (data?.length) setConflicts(data); });
       notificationService.list().then(data => { if (data?.length) setNotifications(data); });
       shiftTemplateService.list().then(data => { if (data?.length) setTemplates(data); });
       settingsService.getRules().then(data => { if (data) setRules(data); });
+      
+      // Load rosters and set active roster
+      rosterService.list().then(data => {
+        if (data?.length) {
+          setRostersList(data);
+          // Auto-select latest draft, else latest published
+          const drafts = data.filter((r: any) => r.status === 'Draft');
+          if (drafts.length > 0) {
+            setActiveRosterId(drafts[drafts.length - 1].id);
+          } else {
+            const published = data.filter((r: any) => r.status === 'Published');
+            if (published.length > 0) {
+              setActiveRosterId(published[published.length - 1].id);
+            }
+          }
+        }
+      });
     }
   }, [role]);
+
+  // Load roster-specific data when activeRosterId changes
+  useEffect(() => {
+    if (role && activeRosterId) {
+      rosterService.listShifts(activeRosterId).then(data => { setRoster(data || []); });
+      conflictService.list(activeRosterId).then(data => { setConflicts(data || []); });
+    } else {
+      setRoster([]);
+      setConflicts([]);
+    }
+  }, [role, activeRosterId]);
 
 
   const value = useMemo<AppState>(
@@ -83,8 +116,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       roster, setRoster, conflicts, setConflicts,
       notifications, setNotifications, users, setUsers,
       rules, setRules, templates, setTemplates,
+      rostersList, setRostersList, activeRosterId, setActiveRosterId,
     }),
-    [role, currentUserId, staff, leaves, swaps, roster, conflicts, notifications, users, rules, templates],
+    [role, currentUserId, staff, leaves, swaps, roster, conflicts, notifications, users, rules, templates, rostersList, activeRosterId],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

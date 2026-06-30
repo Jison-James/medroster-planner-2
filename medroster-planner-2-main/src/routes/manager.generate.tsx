@@ -19,7 +19,7 @@ export const Route = createFileRoute("/manager/generate")({ component: GenerateR
 const steps = ["Select period", "Staff requirements", "Generate", "Preview", "Publish"];
 
 function GenerateRoster() {
-  const { staff, setRoster, setConflicts } = useApp();
+  const { staff, setRoster, setConflicts, setActiveRosterId, setRostersList } = useApp();
   const [step, setStep] = useState(0);
   const [period, setPeriod] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
@@ -42,6 +42,17 @@ function GenerateRoster() {
       const res = await rosterService.generate({ startDate: start, endDate: end, requirements: req });
       setGeneratedRoster(res.roster);
       setGeneratedRosterShifts(res.shifts || []);
+      
+      // Update active roster id
+      if (res.roster?.id) {
+        setActiveRosterId(res.roster.id);
+        
+        // Update rosters list in context
+        rosterService.list().then(data => {
+          if (data?.length) setRostersList(data);
+        });
+      }
+      
       clearInterval(interval); setProgress(100);
       setTimeout(() => { setGenerating(false); setStep(3); }, 300);
     } catch (err) {
@@ -58,11 +69,12 @@ function GenerateRoster() {
     try {
       await rosterService.publish(generatedRoster.id);
       
-      // Refresh global context
-      const shifts = await rosterService.listShifts();
-      setRoster(shifts);
-      const conflictsList = await conflictService.list();
-      setConflicts(conflictsList);
+      // Update rosters list in context to reflect published state
+      rosterService.list().then(data => {
+        if (data?.length) setRostersList(data);
+      });
+      // Context will automatically refresh shifts/conflicts because activeRosterId is still the same but now published
+
 
       setPublished(true);
       toast.success("Roster published");

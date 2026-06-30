@@ -9,9 +9,10 @@ export const rosterService = {
       return [];
     }
   },
-  listShifts: async () => {
+  listShifts: async (rosterId?: string) => {
     try {
-      return await apiCall('/roster/shifts/');
+      const qs = rosterId ? `?roster=${rosterId}` : '';
+      return await apiCall(`/roster/shifts/${qs}`);
     } catch (e) {
       console.error(e);
       return [];
@@ -89,9 +90,10 @@ export const settingsService = {
 };
 
 export const conflictService = {
-  list: async () => {
+  list: async (rosterId?: string) => {
     try {
-      return await apiCall('/roster/conflicts/');
+      const qs = rosterId ? `?roster=${rosterId}` : '';
+      return await apiCall(`/roster/conflicts/${qs}`);
     } catch (e) {
       console.error(e);
       return [];

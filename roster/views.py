@@ -136,28 +136,28 @@ class RosterViewSet(viewsets.ModelViewSet):
             except ValueError:
                 return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Clear any existing Draft rosters for the same period to allow clean rescheduling without constraint blocks
-        Roster.objects.filter(
-            start_date=start_date,
-            end_date=end_date,
-            status='Draft'
-        ).delete()
+        with transaction.atomic():
+            # Delete ANY existing roster for the exact same period to ensure Single Source of Truth
+            Roster.objects.filter(
+                start_date=start_date,
+                end_date=end_date
+            ).delete()
 
-        # Delegate generation logic to Service
-        service = SchedulerService()
-        roster, created_shifts = service.generate(start_date, end_date, requirements)
+            # Delegate generation logic to Service
+            service = SchedulerService()
+            roster, created_shifts = service.generate(start_date, end_date, requirements)
 
-        # Run Conflict Engine AFTER saving the roster and assignments
-        from .services.conflict_engine.engine import ConflictEngineService
-        conflict_engine = ConflictEngineService()
-        conflict_engine.run(roster)
+            # Run Conflict Engine AFTER saving the roster and assignments
+            from .services.conflict_engine.engine import ConflictEngineService
+            conflict_engine = ConflictEngineService()
+            conflict_engine.run(roster)
 
-        # Log Activity
-        ActivityLog.objects.create(
-            action='Roster_Generated',
-            message=f"Roster generated successfully for period {start_date} to {end_date}. Created {len(created_shifts)} assignments.",
-            user=request.user
-        )
+            # Log Activity
+            ActivityLog.objects.create(
+                action='Roster_Generated',
+                message=f"Roster generated successfully for period {start_date} to {end_date}. Created {len(created_shifts)} assignments.",
+                user=request.user
+            )
 
         return Response({
             'roster': RosterSerializer(roster).data,
@@ -244,12 +244,13 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
         if roster_id:
             qs = self.queryset.filter(roster_id=roster_id)
         else:
+            # Fallback for when frontend hasn't supplied roster yet, pick latest published to avoid sending entire DB.
             from .models import Roster
-            latest_rosters = {}
-            for r in Roster.objects.filter(status='Published').order_by('created_at'):
-                latest_rosters[(r.start_date, r.end_date)] = r.id
-            active_roster_ids = list(latest_rosters.values())
-            qs = self.queryset.filter(roster_id__in=active_roster_ids)
+            latest = Roster.objects.filter(status='Published').order_by('-created_at').first()
+            if latest:
+                qs = self.queryset.filter(roster_id=latest.id)
+            else:
+                qs = self.queryset.none()
 
         if user.role == 'manager':
             return qs
@@ -453,12 +454,13 @@ class ConflictViewSet(viewsets.ModelViewSet):
         if roster_id:
             qs = self.queryset.filter(roster_id=roster_id)
         else:
+            # Fallback: only pick the latest published
             from .models import Roster
-            latest_rosters = {}
-            for r in Roster.objects.filter(status='Published').order_by('created_at'):
-                latest_rosters[(r.start_date, r.end_date)] = r.id
-            active_roster_ids = list(latest_rosters.values())
-            qs = self.queryset.filter(roster_id__in=active_roster_ids)
+            latest = Roster.objects.filter(status='Published').order_by('-created_at').first()
+            if latest:
+                qs = self.queryset.filter(roster_id=latest.id)
+            else:
+                qs = self.queryset.none()
         return qs
 
     @action(detail=True, methods=['post'], permission_classes=[IsManager])

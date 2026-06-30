@@ -26,7 +26,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/manager/roster")({ component: RosterViewer });
 
 function RosterViewer() {
-  const { roster, staff, leaves } = useApp();
+  const { roster, staff, leaves, rostersList, activeRosterId, setActiveRosterId } = useApp();
   const [staffFilter, setStaffFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [shiftFilter, setShiftFilter] = useState("all");
@@ -103,6 +103,16 @@ function RosterViewer() {
       <Card className="mb-4 rounded-2xl">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div className="flex flex-wrap gap-3">
+            <Select value={activeRosterId || ""} onValueChange={(val) => setActiveRosterId(val)}>
+              <SelectTrigger className="w-56"><SelectValue placeholder="Select roster" /></SelectTrigger>
+              <SelectContent>
+                {rostersList.map((r: any) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name} ({r.status})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={staffFilter} onValueChange={setStaffFilter}>
               <SelectTrigger className="w-48"><SelectValue placeholder="All staff" /></SelectTrigger>
               <SelectContent><SelectItem value="all">All staff</SelectItem>{staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
