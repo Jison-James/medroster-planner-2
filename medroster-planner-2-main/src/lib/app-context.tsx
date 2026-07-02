@@ -1,0 +1,138 @@
+import { createContext, useContext, useMemo, useState, useEffect, useCallback, type ReactNode } from "react";
+import { 
+  staffService, leaveService, rosterService, 
+  settingsService, conflictService, notificationService, shiftTemplateService 
+} from "@/services";
+import type {
+  Role,
+  Staff,
+  LeaveRequest,
+  RosterEntry,
+  Conflict,
+  AppNotification,
+  SystemUser,
+  RosterRules,
+  ShiftTemplate,
+} from "@/types";
+
+interface AppState {
+  role: Role | null;
+  currentUserId: string;
+  setRole: (r: Role | null) => void;
+  setCurrentUserId: (id: string) => void;
+  staff: Staff[];
+  setStaff: React.Dispatch<React.SetStateAction<Staff[]>>;
+  leaves: LeaveRequest[];
+  setLeaves: React.Dispatch<React.SetStateAction<LeaveRequest[]>>;
+  roster: RosterEntry[];
+  setRoster: React.Dispatch<React.SetStateAction<RosterEntry[]>>;
+  conflicts: Conflict[];
+  setConflicts: React.Dispatch<React.SetStateAction<Conflict[]>>;
+  notifications: AppNotification[];
+  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>;
+  users: SystemUser[];
+  setUsers: React.Dispatch<React.SetStateAction<SystemUser[]>>;
+  rules: RosterRules;
+  setRules: React.Dispatch<React.SetStateAction<RosterRules>>;
+  templates: ShiftTemplate[];
+  setTemplates: React.Dispatch<React.SetStateAction<ShiftTemplate[]>>;
+  rostersList: any[];
+  setRostersList: React.Dispatch<React.SetStateAction<any[]>>;
+  activeRosterId: string | null;
+  setActiveRosterId: React.Dispatch<React.SetStateAction<string | null>>;
+  refreshRosterData: () => void;
+}
+
+const Ctx = createContext<AppState | null>(null);
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  // Role and user identity are kept in memory only. Persisting them to
+  // localStorage would let any visitor grant themselves manager access by
+  // editing browser storage in DevTools, bypassing the login screen.
+  const [role, setRoleState] = useState<Role | null>(null);
+  const [currentUserId, setCurrentUserIdState] = useState<string>("s1");
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [users, setUsers] = useState<SystemUser[]>([]);
+  const [rules, setRules] = useState<RosterRules>({} as RosterRules);
+  const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
+  const [rostersList, setRostersList] = useState<any[]>([]);
+  const [activeRosterId, setActiveRosterId] = useState<string | null>(null);
+
+  const setRole = (r: Role | null) => setRoleState(r);
+  const setCurrentUserId = (id: string) => setCurrentUserIdState(id);
+
+  // Force-refresh shifts and conflicts for the current activeRosterId
+  const refreshRosterData = useCallback(() => {
+    if (activeRosterId) {
+      rosterService.listShifts(activeRosterId).then(data => { setRoster(data || []); });
+      conflictService.list(activeRosterId).then(data => { setConflicts(data || []); });
+    }
+    // Also refresh the rosters list
+    rosterService.list().then(data => { if (data?.length) setRostersList(data); });
+  }, [activeRosterId]);
+
+  // Load baseline data on role assignment
+  useEffect(() => {
+    if (role) {
+      staffService.list().then(data => { if (data?.length) setStaff(data); });
+      leaveService.list().then(data => { if (data?.length) setLeaves(data); });
+      notificationService.list().then(data => { if (data?.length) setNotifications(data); });
+      shiftTemplateService.list().then(data => { if (data?.length) setTemplates(data); });
+      settingsService.getRules().then(data => { if (data) setRules(data); });
+      
+      // Load rosters and set active roster
+      rosterService.list().then(data => {
+        if (data?.length) {
+          setRostersList(data);
+          // Auto-select latest draft, else latest published
+          const drafts = data.filter((r: any) => r.status === 'Draft');
+          if (drafts.length > 0) {
+            setActiveRosterId(drafts[drafts.length - 1].id);
+          } else {
+            const published = data.filter((r: any) => r.status === 'Published');
+            if (published.length > 0) {
+              setActiveRosterId(published[published.length - 1].id);
+            }
+          }
+        }
+      });
+    }
+  }, [role]);
+
+  // Load roster-specific data when activeRosterId changes
+  useEffect(() => {
+    if (role && activeRosterId) {
+      rosterService.listShifts(activeRosterId).then(data => { setRoster(data || []); });
+      conflictService.list(activeRosterId).then(data => { setConflicts(data || []); });
+    } else {
+      setRoster([]);
+      setConflicts([]);
+    }
+  }, [role, activeRosterId]);
+
+
+  const value = useMemo<AppState>(
+    () => ({
+      role, currentUserId, setRole, setCurrentUserId,
+      staff, setStaff, leaves, setLeaves,
+      roster, setRoster, conflicts, setConflicts,
+      notifications, setNotifications, users, setUsers,
+      rules, setRules, templates, setTemplates,
+      rostersList, setRostersList, activeRosterId, setActiveRosterId,
+      refreshRosterData,
+    }),
+    [role, currentUserId, staff, leaves, roster, conflicts, notifications, users, rules, templates, rostersList, activeRosterId, refreshRosterData],
+  );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useApp() {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error("useApp must be used inside AppProvider");
+  return ctx;
+}
