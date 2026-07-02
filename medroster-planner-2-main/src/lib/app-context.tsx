@@ -72,8 +72,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       conflictService.list(activeRosterId).then(data => { setConflicts(data || []); });
     }
     // Also refresh the rosters list
-    rosterService.list().then(data => { if (data?.length) setRostersList(data); });
-  }, [activeRosterId]);
+    rosterService.list().then(data => { 
+      if (data?.length) {
+        setRostersList(data);
+        let newActiveId = null;
+        if (role === 'staff') {
+          const published = data.filter((r: any) => r.status === 'Published');
+          if (published.length > 0) newActiveId = published[published.length - 1].id;
+        } else {
+          const drafts = data.filter((r: any) => r.status === 'Draft');
+          if (drafts.length > 0) newActiveId = drafts[drafts.length - 1].id;
+          else {
+            const published = data.filter((r: any) => r.status === 'Published');
+            if (published.length > 0) newActiveId = published[published.length - 1].id;
+          }
+        }
+        
+        if (newActiveId && (!activeRosterId || role === 'staff' || activeRosterId !== newActiveId)) {
+          setActiveRosterId(newActiveId);
+        }
+      } 
+    });
+  }, [activeRosterId, role]);
 
   // Load baseline data on role assignment
   useEffect(() => {
@@ -88,16 +108,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rosterService.list().then(data => {
         if (data?.length) {
           setRostersList(data);
-          // Auto-select latest draft, else latest published
-          const drafts = data.filter((r: any) => r.status === 'Draft');
-          if (drafts.length > 0) {
-            setActiveRosterId(drafts[drafts.length - 1].id);
-          } else {
+          let newActiveId = null;
+          if (role === 'staff') {
             const published = data.filter((r: any) => r.status === 'Published');
-            if (published.length > 0) {
-              setActiveRosterId(published[published.length - 1].id);
+            if (published.length > 0) newActiveId = published[published.length - 1].id;
+          } else {
+            const drafts = data.filter((r: any) => r.status === 'Draft');
+            if (drafts.length > 0) newActiveId = drafts[drafts.length - 1].id;
+            else {
+              const published = data.filter((r: any) => r.status === 'Published');
+              if (published.length > 0) newActiveId = published[published.length - 1].id;
             }
           }
+          if (newActiveId) setActiveRosterId(newActiveId);
         }
       });
     }
