@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useApp } from "@/lib/app-context";
+import { useGreeting } from "@/hooks/useGreeting";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,8 @@ export const Route = createFileRoute("/staff/dashboard")({ component: StaffDashb
 
 function StaffDashboard() {
   const { roster, leaves, currentUserId, staff } = useApp();
-  const me = staff.find((s) => s.id === currentUserId) ?? staff[0];
+  const me = staff.find((s) => s.id === currentUserId);
+  const greeting = useGreeting();
   const today = format(new Date(), "yyyy-MM-dd");
   const mine = me ? roster.filter((r) => r.staffId === me.id).sort((a, b) => a.date.localeCompare(b.date)) : [];
   const todayShift = mine.find((r) => r.date === today);
@@ -40,7 +42,7 @@ function StaffDashboard() {
 
   return (
     <div>
-      <PageHeader title={`Welcome back, ${me ? me.name.split(" ")[0] : "User"}`} description="Here's what's happening with your schedule." />
+      <PageHeader title={greeting} description="Here's what's happening with your schedule." />
 
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
         <Card className="rounded-2xl"><CardContent className="p-5">

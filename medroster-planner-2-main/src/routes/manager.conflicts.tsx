@@ -372,7 +372,7 @@ function Conflicts() {
                   <TableHead className="font-semibold text-xs uppercase">Shift Slot</TableHead>
                   <TableHead className="font-semibold text-xs uppercase">Employee</TableHead>
                   <TableHead className="font-semibold text-xs uppercase text-center">Status</TableHead>
-                  <TableHead className="w-[280px] pr-4 text-right font-semibold text-xs uppercase">Actions</TableHead>
+                  <TableHead className="pr-4 text-right font-semibold text-xs uppercase">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -401,19 +401,6 @@ function Conflicts() {
                         <TableCell className="py-3 text-center">{getStatusBadge(c.status)}</TableCell>
                         <TableCell className="pr-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end gap-1.5">
-                            <Button size="xs" variant="ghost" className="h-8 w-8 p-0 rounded-lg hover:bg-muted" onClick={() => setSelectedConflict(c)} title="View Details">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            {c.status === "Open" && (
-                              <>
-                                <Button size="xs" variant="outline" className="h-8 text-xs px-2.5 rounded-lg border-border" onClick={() => handleReassign(c)}>
-                                  Reassign
-                                </Button>
-                                <Button size="xs" variant="ghost" className="h-8 text-xs px-2.5 rounded-lg text-muted-foreground" onClick={() => setIgnoreConflict(c)}>
-                                  Ignore
-                                </Button>
-                              </>
-                            )}
                             <Button size="xs" variant="ghost" className="h-8 w-8 p-0 rounded-lg" onClick={() => toggleRow(c.id)}>
                               {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </Button>

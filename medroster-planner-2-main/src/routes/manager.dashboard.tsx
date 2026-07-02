@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useApp } from "@/lib/app-context";
+import { useGreeting } from "@/hooks/useGreeting";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/manager/dashboard")({ component: ManagerD
 
 function ManagerDashboard() {
   const { staff, leaves, conflicts, roster } = useApp();
+  const greeting = useGreeting();
   const today = format(new Date(), "yyyy-MM-dd");
   const todaysStaffing = roster.filter((r) => r.date === today).length;
   const docs = staff.filter((s) => s.role === "Doctor").length;
@@ -22,7 +24,7 @@ function ManagerDashboard() {
   return (
     <div>
       <PageHeader
-        title={`Hello, Alex 👋`}
+        title={greeting}
         description="Here's how your hospital is looking today."
         actions={
           <Button asChild><Link to="/manager/generate"><CalendarPlus className="mr-2 h-4 w-4" />Generate roster</Link></Button>
