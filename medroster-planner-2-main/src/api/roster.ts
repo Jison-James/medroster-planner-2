@@ -41,6 +41,17 @@ export const rosterService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  },
+  updateShift: async (id: string, data: any) => {
+    return await apiCall(`/roster/shifts/${id}/`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteShift: async (id: string) => {
+    return await apiCall(`/roster/shifts/${id}/`, {
+      method: 'DELETE',
+    });
   }
 };
 

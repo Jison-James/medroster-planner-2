@@ -5,8 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ShiftBadge, shiftMeta } from "@/components/shared/ShiftBadge";
 import { StatusBadge, statusToTone } from "@/components/shared/StatusBadge";
-import { CalendarPlus, CalendarCheck, Repeat, CheckCircle2 } from "lucide-react";
+import { CalendarPlus, CalendarCheck, Repeat, CheckCircle2, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
+import { useState, useEffect } from "react";
+import { apiCall } from "@/api/api";
 
 export const Route = createFileRoute("/staff/dashboard")({ component: StaffDashboard });
 
@@ -14,14 +16,31 @@ function StaffDashboard() {
   const { roster, leaves, currentUserId, staff } = useApp();
   const me = staff.find((s) => s.id === currentUserId) ?? staff[0];
   const today = format(new Date(), "yyyy-MM-dd");
-  const mine = roster.filter((r) => r.staffId === me.id).sort((a, b) => a.date.localeCompare(b.date));
+  const mine = me ? roster.filter((r) => r.staffId === me.id).sort((a, b) => a.date.localeCompare(b.date)) : [];
   const todayShift = mine.find((r) => r.date === today);
   const upcoming = mine.filter((r) => r.date > today).slice(0, 4);
-  const latestLeave = leaves.filter((l) => l.staffId === me.id).slice(-1)[0];
+  const latestLeave = me ? leaves.filter((l) => l.staffId === me.id).slice(-1)[0] : undefined;
+  
+  const [myAvailability, setMyAvailability] = useState<any>(null);
+  const [loadingAvail, setLoadingAvail] = useState(true);
+
+  useEffect(() => {
+    if (me?.id) {
+      setLoadingAvail(true);
+      apiCall('/roster/availability/')
+        .then(data => {
+          if (data && data.length > 0) {
+            setMyAvailability(data[0]);
+          }
+        })
+        .catch(console.error)
+        .finally(() => setLoadingAvail(false));
+    }
+  }, [me?.id]);
 
   return (
     <div>
-      <PageHeader title={`Welcome back, ${me.name.split(" ")[0]}`} description="Here's what's happening with your schedule." />
+      <PageHeader title={`Welcome back, ${me ? me.name.split(" ")[0] : "User"}`} description="Here's what's happening with your schedule." />
 
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
         <Card className="rounded-2xl"><CardContent className="p-5">
@@ -41,7 +60,25 @@ function StaffDashboard() {
         </CardContent></Card>
         <Card className="rounded-2xl"><CardContent className="p-5">
           <p className="text-sm text-muted-foreground">Availability</p>
-          <div className="mt-2 flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-success" /><span className="text-sm font-medium">Up to date</span></div>
+          {loadingAvail ? (
+            <p className="mt-2 text-xs text-muted-foreground animate-pulse">Loading status...</p>
+          ) : myAvailability ? (
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-success" />
+                <span className="text-sm font-medium">Up to date</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground capitalize">Prefers {myAvailability.preferredShift || 'no preference'}</p>
+            </div>
+          ) : (
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+                <span className="text-sm font-medium">Not configured</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Please configure availability</p>
+            </div>
+          )}
         </CardContent></Card>
       </div>
 

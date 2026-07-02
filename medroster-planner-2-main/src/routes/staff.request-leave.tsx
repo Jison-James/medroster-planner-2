@@ -34,13 +34,15 @@ function RequestLeave() {
   });
 
   const onSubmit = handleSubmit(async (data) => {
-    await leaveService.submit(data);
-    setLeaves((arr) => [...arr, {
-      id: `l${arr.length + 1}`, staffId: currentUserId, ...data,
-      status: "Pending", submittedOn: format(new Date(), "yyyy-MM-dd"),
-    }]);
-    toast.success("Leave request submitted");
-    navigate({ to: "/staff/leave-status" });
+    try {
+      const res = await leaveService.submit(data);
+      setLeaves((arr) => [...arr, res]);
+      toast.success("Leave request submitted");
+      navigate({ to: "/staff/leave-status" });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to submit leave request");
+    }
   });
 
   return (

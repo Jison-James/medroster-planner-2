@@ -60,7 +60,7 @@ class AvailabilitySerializer(serializers.ModelSerializer):
 
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
-    staffId = serializers.UUIDField(write_only=True)
+    staffId = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     type = serializers.CharField(source='leave_type')
     startDate = serializers.DateField(source='start_date')
     endDate = serializers.DateField(source='end_date')
@@ -77,8 +77,15 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         return rep
 
     def create(self, validated_data):
-        staff_id = validated_data.pop('staffId')
-        validated_data['staff'] = StaffProfile.objects.get(user_id=staff_id)
+        staff_id = validated_data.pop('staffId', None)
+        if not staff_id:
+            request = self.context.get('request')
+            if request and request.user and hasattr(request.user, 'staff_profile'):
+                validated_data['staff'] = request.user.staff_profile
+            else:
+                raise serializers.ValidationError({"staffId": "Could not infer staff profile from user session."})
+        else:
+            validated_data['staff'] = StaffProfile.objects.get(user_id=staff_id)
         return super().create(validated_data)
 
 

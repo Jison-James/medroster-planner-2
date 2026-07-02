@@ -1,13 +1,12 @@
 import { createContext, useContext, useMemo, useState, useEffect, useCallback, type ReactNode } from "react";
 import { 
-  staffService, leaveService, rosterService, swapService, 
+  staffService, leaveService, rosterService, 
   settingsService, conflictService, notificationService, shiftTemplateService 
 } from "@/services";
 import type {
   Role,
   Staff,
   LeaveRequest,
-  SwapRequest,
   RosterEntry,
   Conflict,
   AppNotification,
@@ -25,8 +24,6 @@ interface AppState {
   setStaff: React.Dispatch<React.SetStateAction<Staff[]>>;
   leaves: LeaveRequest[];
   setLeaves: React.Dispatch<React.SetStateAction<LeaveRequest[]>>;
-  swaps: SwapRequest[];
-  setSwaps: React.Dispatch<React.SetStateAction<SwapRequest[]>>;
   roster: RosterEntry[];
   setRoster: React.Dispatch<React.SetStateAction<RosterEntry[]>>;
   conflicts: Conflict[];
@@ -56,7 +53,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUserId, setCurrentUserIdState] = useState<string>("s1");
   const [staff, setStaff] = useState<Staff[]>([]);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [swaps, setSwaps] = useState<SwapRequest[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -84,7 +80,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (role) {
       staffService.list().then(data => { if (data?.length) setStaff(data); });
       leaveService.list().then(data => { if (data?.length) setLeaves(data); });
-      swapService.list().then(data => { if (data?.length) setSwaps(data); });
       notificationService.list().then(data => { if (data?.length) setNotifications(data); });
       shiftTemplateService.list().then(data => { if (data?.length) setTemplates(data); });
       settingsService.getRules().then(data => { if (data) setRules(data); });
@@ -123,14 +118,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppState>(
     () => ({
       role, currentUserId, setRole, setCurrentUserId,
-      staff, setStaff, leaves, setLeaves, swaps, setSwaps,
+      staff, setStaff, leaves, setLeaves,
       roster, setRoster, conflicts, setConflicts,
       notifications, setNotifications, users, setUsers,
       rules, setRules, templates, setTemplates,
       rostersList, setRostersList, activeRosterId, setActiveRosterId,
       refreshRosterData,
     }),
-    [role, currentUserId, staff, leaves, swaps, roster, conflicts, notifications, users, rules, templates, rostersList, activeRosterId, refreshRosterData],
+    [role, currentUserId, staff, leaves, roster, conflicts, notifications, users, rules, templates, rostersList, activeRosterId, refreshRosterData],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { settingsService, authService } from "@/services";
+import { settingsService, authService, staffService } from "@/services";
 
 const pwdSchema = z.object({
   current: z.string().min(1, "Required"),
@@ -20,26 +20,42 @@ const pwdSchema = z.object({
 }).refine((d) => d.next === d.confirm, { message: "Passwords don't match", path: ["confirm"] });
 
 export function ProfileTabs({ scope = "manager" }: { scope?: "manager" | "staff" }) {
-  const { staff, currentUserId } = useApp();
+  const { staff, currentUserId, setStaff } = useApp();
   const me = staff.find((s) => s.id === currentUserId) ?? staff[0];
 
-  const [info, setInfo] = useState({ name: me.name, email: me.email, phone: me.phone, department: me.department });
-  const [prefs, setPrefs] = useState({ email: true, inApp: true, weeklyDigest: false });
+  const [info, setInfo] = useState({ name: me?.name || "", email: me?.email || "", phone: me?.phone || "", department: me?.department || "" });
+  const [prefs, setPrefs] = useState(() => {
+    const saved = localStorage.getItem(`prefs_${currentUserId}`);
+    return saved ? JSON.parse(saved) : { email: true, inApp: true, weeklyDigest: false };
+  });
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<z.infer<typeof pwdSchema>>({ resolver: zodResolver(pwdSchema) });
 
   const savePersonal = async () => {
-    await settingsService.save(info);
-    toast.success("Profile updated");
+    if (!me?.id) return;
+    try {
+      const updatedUser = await staffService.save({ id: me.id, ...info });
+      // Update global context state
+      setStaff((arr) => arr.map((s) => s.id === me.id ? { ...s, name: info.name, email: info.email, phone: info.phone, department: info.department } : s));
+      toast.success("Profile updated");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update profile");
+    }
   };
   const savePrefs = async () => {
-    await settingsService.save(prefs);
+    localStorage.setItem(`prefs_${currentUserId}`, JSON.stringify(prefs));
     toast.success("Preferences saved");
   };
   const submitPwd = handleSubmit(async (data) => {
-    await authService.changePassword(data);
-    toast.success("Password changed");
-    reset();
+    try {
+      await authService.changePassword(data);
+      toast.success("Password changed");
+      reset();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to change password");
+    }
   });
 
   return (

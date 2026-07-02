@@ -14,6 +14,13 @@ export const authService = {
     return data;
   },
   changePassword: async (data: any) => {
-    return { success: true };
+    return await apiCall('/auth/password/change/', {
+      method: 'POST',
+      body: JSON.stringify({
+        old_password: data.current,
+        new_password1: data.next,
+        new_password2: data.confirm
+      }),
+    });
   }
 };

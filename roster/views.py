@@ -56,8 +56,8 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated and user.role == 'manager':
-            return self.queryset
-        return self.queryset.filter(staff__user=user)
+            return self.queryset.all()
+        return self.queryset.all().filter(staff__user=user)
 
     @action(detail=True, methods=['post'], permission_classes=[IsManager])
     def approve(self, request, pk=None):
