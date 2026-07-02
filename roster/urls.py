@@ -4,13 +4,14 @@ from .views import (
     ShiftTemplateViewSet, RosterRuleViewSet, AvailabilityViewSet,
     LeaveRequestViewSet, RosterViewSet, RosterAssignmentViewSet,
     SwapRequestViewSet, ConflictViewSet, NotificationViewSet,
-    ActivityLogViewSet
+    ActivityLogViewSet, AvailableStaffViewSet
 )
 
 router = DefaultRouter()
 router.register(r'templates', ShiftTemplateViewSet, basename='shifttemplate')
 router.register(r'rules', RosterRuleViewSet, basename='rosterrules')
 router.register(r'availability', AvailabilityViewSet, basename='availability')
+router.register(r'available-staff', AvailableStaffViewSet, basename='availablestaff')
 router.register(r'leave-requests', LeaveRequestViewSet, basename='leaverequest')
 router.register(r'rosters', RosterViewSet, basename='roster')
 router.register(r'shifts', RosterAssignmentViewSet, basename='rostershift')

@@ -13,6 +13,11 @@ export const Route = createFileRoute("/staff/shifts")({ component: MyShifts });
 function MyShifts() {
   const { roster, currentUserId, staff } = useApp();
   const me = staff.find((s) => s.id === currentUserId) ?? staff[0];
+
+  if (!me) {
+    return <div className="p-6 text-center text-muted-foreground animate-pulse">Loading shifts...</div>;
+  }
+
   const mine = roster.filter((r) => r.staffId === me.id);
   const today = new Date();
   const todayShift = mine.find((r) => r.date === format(today, "yyyy-MM-dd"));

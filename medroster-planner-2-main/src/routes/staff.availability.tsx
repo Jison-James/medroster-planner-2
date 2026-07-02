@@ -19,14 +19,33 @@ const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 function Availability() {
   const { staff, currentUserId, setStaff } = useApp();
   const me = staff.find((s) => s.id === currentUserId) ?? staff[0];
-  const [avail, setAvail] = useState(me.availableDays);
-  const [pref, setPref] = useState<ShiftType | "none">(me.preferredShift);
-  const [off, setOff] = useState<string[]>(me.preferredDaysOff);
-  const [notes, setNotes] = useState("");
+
+  if (!me) {
+    return (
+      <div>
+        <PageHeader title="Availability" description="Tell us when you're available and what shifts you prefer." />
+        <div className="p-6 text-center text-muted-foreground animate-pulse">Loading availability...</div>
+      </div>
+    );
+  }
+
+  return <AvailabilityForm me={me} setStaff={setStaff} />;
+}
+
+function AvailabilityForm({ me, setStaff }: { me: any; setStaff: any }) {
+  const [avail, setAvail] = useState(me.availableDays || []);
+  const [pref, setPref] = useState<ShiftType | "none">(me.preferredShift || "none");
+  const [off, setOff] = useState<string[]>(me.preferredDaysOff || []);
+  const [notes, setNotes] = useState(me.notes || "");
 
   const save = async () => {
-    await availabilityService.save({ avail, pref, off, notes });
-    setStaff((arr) => arr.map((s) => s.id === me.id ? { ...s, availableDays: avail, preferredShift: pref, preferredDaysOff: off } : s));
+    await availabilityService.save({
+      availableDays: avail,
+      preferredShift: pref,
+      preferredDaysOff: off,
+      notes,
+    });
+    setStaff((arr: any[]) => arr.map((s) => s.id === me.id ? { ...s, availableDays: avail, preferredShift: pref, preferredDaysOff: off } : s));
     toast.success("Availability saved");
   };
 

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
+import { cn, getGreetingName } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
 import { rosterService, conflictService } from "@/services";
 import { toast } from "sonner";
@@ -198,7 +198,7 @@ function GenerateRoster() {
                                       if (!member) return null;
                                       return (
                                         <span key={e.id} className="inline-flex items-center rounded bg-muted/60 px-1 py-0.5 text-[9px] font-medium text-foreground">
-                                          {member.name.split(" ")[0]}
+                                          {getGreetingName(member.name)}
                                         </span>
                                       );
                                     })}

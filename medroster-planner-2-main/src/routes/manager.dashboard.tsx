@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Users, Stethoscope, Activity, HardHat, CalendarClock, AlertTriangle, CalendarRange, UserPlus, ClipboardCheck, CalendarPlus, CheckCircle2 } from "lucide-react";
 
 import { format } from "date-fns";
+import { getGreetingName } from "@/lib/utils";
 
 export const Route = createFileRoute("/manager/dashboard")({ component: ManagerDashboard });
 
 function ManagerDashboard() {
-  const { staff, leaves, conflicts, roster } = useApp();
+  const { staff, leaves, conflicts, roster, currentUserId } = useApp();
+  const me = staff.find((s) => s.id === currentUserId) ?? staff[0];
   const today = format(new Date(), "yyyy-MM-dd");
   const todaysStaffing = roster.filter((r) => r.date === today).length;
   const docs = staff.filter((s) => s.role === "Doctor").length;
@@ -22,7 +24,7 @@ function ManagerDashboard() {
   return (
     <div>
       <PageHeader
-        title={`Hello, Alex 👋`}
+        title={`Hello, ${getGreetingName(me?.name)} 👋`}
         description="Here's how your hospital is looking today."
         actions={
           <Button asChild><Link to="/manager/generate"><CalendarPlus className="mr-2 h-4 w-4" />Generate roster</Link></Button>

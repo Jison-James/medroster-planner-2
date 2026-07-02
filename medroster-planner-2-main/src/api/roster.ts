@@ -9,10 +9,21 @@ export const rosterService = {
       return [];
     }
   },
-  listShifts: async (rosterId?: string) => {
+  listShifts: async (rosterId?: string, date?: string) => {
     try {
-      const qs = rosterId ? `?roster=${rosterId}` : '';
+        let qs = '';
+        if (rosterId) qs += `roster=${rosterId}`;
+        if (date) qs += (qs ? '&' : '') + `date=${date}`;
+        qs = qs ? `?${qs}` : '';
       return await apiCall(`/roster/shifts/${qs}`);
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  },
+  getAvailableStaff: async (date: string) => {
+    try {
+      return await apiCall(`/roster/available-staff/?date=${date}`);
     } catch (e) {
       console.error(e);
       return [];
@@ -40,6 +51,11 @@ export const rosterService = {
     return await apiCall('/roster/shifts/', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+  unassign: async (shiftId: string) => {
+    return await apiCall(`/roster/shifts/${shiftId}/`, {
+      method: 'DELETE',
     });
   }
 };
@@ -138,9 +154,17 @@ export const shiftTemplateService = {
 };
 
 export const availabilityService = {
+  get: async () => {
+    try {
+      return await apiCall('/roster/availability/me/');
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  },
   save: async (data: any) => {
-    return await apiCall(`/roster/availability/${data.id}/`, {
-      method: 'PUT',
+    return await apiCall('/roster/availability/me/', {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   }

@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   AlertTriangle, CalendarX, Copy, Clock, UserMinus, Sparkles, 
-  ChevronDown, ChevronUp, Eye, ShieldAlert, CheckCircle, HelpCircle, FileText
+  Eye, ShieldAlert, CheckCircle, HelpCircle, FileText
 } from "lucide-react";
 import { toast } from "sonner";
 import { conflictService } from "@/services";
@@ -89,8 +89,8 @@ function Conflicts() {
   // Compute Statistics
   const totalCount = conflicts.length;
   const criticalCount = conflicts.filter((c) => c.severity === "Critical").length;
-  const highCount = conflicts.filter((c) => c.severity === "High").length;
-  const mediumCount = conflicts.filter((c) => c.severity === "Medium").length;
+  const highCount = conflicts.filter((c) => c.severity === "Warning").length;
+  const mediumCount = conflicts.filter((c) => c.severity === "Info").length;
   const resolvedCount = conflicts.filter((c) => c.status === "Resolved").length;
   const ignoredCount = conflicts.filter((c) => c.status === "Ignored").length;
 
@@ -385,7 +385,7 @@ function Conflicts() {
                   return (
                     <React.Fragment key={c.id}>
                       <TableRow className="hover:bg-muted/30 cursor-pointer" onClick={() => toggleRow(c.id)}>
-                        <TableCell className="pl-4 py-3">{getSeverityBadge(c.severity)}</TableCell>
+                        <TableCell className="pl-4 py-3">{getSeverityBadge(c.severity || "Info")}</TableCell>
                         <TableCell className="py-3">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm text-foreground">{c.title || meta.label}</span>
@@ -401,21 +401,8 @@ function Conflicts() {
                         <TableCell className="py-3 text-center">{getStatusBadge(c.status)}</TableCell>
                         <TableCell className="pr-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end gap-1.5">
-                            <Button size="xs" variant="ghost" className="h-8 w-8 p-0 rounded-lg hover:bg-muted" onClick={() => setSelectedConflict(c)} title="View Details">
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg hover:bg-muted" onClick={() => setSelectedConflict(c)} title="View Details">
                               <Eye className="h-4 w-4" />
-                            </Button>
-                            {c.status === "Open" && (
-                              <>
-                                <Button size="xs" variant="outline" className="h-8 text-xs px-2.5 rounded-lg border-border" onClick={() => handleReassign(c)}>
-                                  Reassign
-                                </Button>
-                                <Button size="xs" variant="ghost" className="h-8 text-xs px-2.5 rounded-lg text-muted-foreground" onClick={() => setIgnoreConflict(c)}>
-                                  Ignore
-                                </Button>
-                              </>
-                            )}
-                            <Button size="xs" variant="ghost" className="h-8 w-8 p-0 rounded-lg" onClick={() => toggleRow(c.id)}>
-                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </Button>
                           </div>
                         </TableCell>

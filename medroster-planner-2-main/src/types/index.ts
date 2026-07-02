@@ -64,24 +64,38 @@ export type ConflictStatus = "Open" | "Resolved" | "Ignored";
 
 export interface Conflict {
   id: string;
-  type: ConflictType;
+  type: ConflictType; // Maps to conflict_type maybe, wait, let's keep it as is, or use conflict_type? Let's check manager.conflicts.tsx
+  conflictType?: ConflictType;
+  title?: string;
+  description?: string;
   message: string;
   date: string;
   staffId?: string;
+  employeeId?: string;
   shift?: ShiftType;
   status: ConflictStatus;
+  severity?: "Critical" | "Warning" | "Info";
+  createdAt?: string;
+  reason?: string;
+  expectedValue?: string;
+  actualValue?: string;
+  suggestedResolution?: string;
+  planningBoardRedirect?: string;
 }
 
 export type NotificationType =
-  | "Leave Approved"
-  | "Shift Changed"
-  | "Roster Published"
-  | "Swap Approved"
-  | "Leave Rejected";
+  | "Leave_Approved"
+  | "Leave_Rejected"
+  | "Shift_Changed"
+  | "Roster_Published"
+  | "Swap_Approved"
+  | "Swap_Rejected"
+  | "Conflict_Detected";
 
 export interface AppNotification {
   id: string;
   type: NotificationType;
+  title: string;
   message: string;
   timestamp: string;
   read: boolean;

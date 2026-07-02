@@ -75,8 +75,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rosterService.listShifts(activeRosterId).then(data => { setRoster(data || []); });
       conflictService.list(activeRosterId).then(data => { setConflicts(data || []); });
     }
-    // Also refresh the rosters list
-    rosterService.list().then(data => { if (data?.length) setRostersList(data); });
+    // Also refresh the rosters list, re-selecting if the current roster disappears
+    rosterService.list().then(data => {
+      if (data?.length) {
+        setRostersList(data);
+      }
+    });
   }, [activeRosterId]);
 
   // Load baseline data on role assignment
@@ -93,14 +97,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rosterService.list().then(data => {
         if (data?.length) {
           setRostersList(data);
-          // Auto-select latest draft, else latest published
-          const drafts = data.filter((r: any) => r.status === 'Draft');
-          if (drafts.length > 0) {
-            setActiveRosterId(drafts[drafts.length - 1].id);
-          } else {
+          if (role === 'staff') {
+            // Staff should only ever see Published rosters
             const published = data.filter((r: any) => r.status === 'Published');
             if (published.length > 0) {
               setActiveRosterId(published[published.length - 1].id);
+            }
+          } else {
+            // Manager: prefer latest Draft, else latest Published
+            const drafts = data.filter((r: any) => r.status === 'Draft');
+            if (drafts.length > 0) {
+              setActiveRosterId(drafts[drafts.length - 1].id);
+            } else {
+              const published = data.filter((r: any) => r.status === 'Published');
+              if (published.length > 0) {
+                setActiveRosterId(published[published.length - 1].id);
+              }
             }
           }
         }

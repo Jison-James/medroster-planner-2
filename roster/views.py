@@ -21,6 +21,54 @@ from .serializers import (
 )
 from .permissions import IsManager, IsOwnerOrManager
 from .services.scheduler import SchedulerService
+from django.db.models import Exists, OuterRef, Q
+
+class AvailableStaffViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsOwnerOrManager]
+    serializer_class = AvailabilitySerializer  # Could also make a custom serializer, but let's build the response manually
+
+    def list(self, request, *args, **kwargs):
+        date_str = request.query_params.get('date')
+        if not date_str:
+            return Response({'error': 'date parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'error': 'Invalid date format'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. Staff on Approved leave
+        staff_on_leave = LeaveRequest.objects.filter(
+            status='Approved',
+            start_date__lte=target_date,
+            end_date__gte=target_date
+        ).values_list('staff_id', flat=True)
+
+        # 2. Staff already assigned to a shift on that date
+        staff_assigned = RosterAssignment.objects.filter(
+            shift_date=target_date
+        ).values_list('staff_id', flat=True)
+
+        # 3. Available staff
+        available_staff_profiles = StaffProfile.objects.exclude(
+            Q(id__in=staff_on_leave) | Q(id__in=staff_assigned) | Q(user__role='manager')
+        ).select_related('user').prefetch_related('availability')
+
+        results = []
+        for staff in available_staff_profiles:
+            availability = staff.availability.first()
+            pref = availability.preferred_shift if availability else None
+            
+            results.append({
+                'id': str(staff.user.id),
+                'full_name': staff.user.full_name or staff.user.email,
+                'role': staff.role,
+                'department': staff.department,
+                'avatar_color': staff.avatar_color,
+                'preferred_shift': pref
+            })
+
+        return Response(results)
 
 
 class ShiftTemplateViewSet(viewsets.ModelViewSet):
@@ -46,6 +94,19 @@ class AvailabilityViewSet(viewsets.ModelViewSet):
         if user.is_authenticated and user.role == 'manager':
             return self.queryset
         return self.queryset.filter(staff__user=user)
+
+    @action(detail=False, methods=['get', 'patch'], url_path='me')
+    def me(self, request):
+        staff_profile = getattr(request.user, 'staff_profile', None)
+        if not staff_profile:
+            return Response({'error': 'No staff profile'}, status=status.HTTP_400_BAD_REQUEST)
+        availability, _ = Availability.objects.get_or_create(staff=staff_profile)
+        if request.method == 'PATCH':
+            serializer = self.get_serializer(availability, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
+        return Response(self.get_serializer(availability).data)
 
 
 class LeaveRequestViewSet(viewsets.ModelViewSet):
@@ -109,7 +170,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
 
 class RosterViewSet(viewsets.ModelViewSet):
-    queryset = Roster.objects.select_related('staff__user').prefetch_related('shifts').all()
+    queryset = Roster.objects.select_related('staff__user').prefetch_related('shifts').all().order_by('-start_date')
     serializer_class = RosterSerializer
     permission_classes = [IsOwnerOrManager]
 
@@ -241,10 +302,20 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
             return self.queryset.none()
 
         roster_id = self.request.query_params.get('roster')
-        if not roster_id:
+        date_val = self.request.query_params.get('date')
+        
+        if not roster_id and not date_val:
             return self.queryset.none()
 
-        qs = self.queryset.filter(roster_id=roster_id)
+        qs = self.queryset
+        if roster_id:
+            qs = qs.filter(roster_id=roster_id)
+        if date_val:
+            try:
+                target_date = datetime.strptime(date_val, '%Y-%m-%d').date()
+                qs = qs.filter(shift_date=target_date)
+            except ValueError:
+                pass
 
         if user.role == 'manager':
             return qs
@@ -252,11 +323,30 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         roster_id = request.query_params.get('roster')
-        if not roster_id:
+        date_val = request.query_params.get('date')
+        if not roster_id and not date_val:
             return Response(
-                {'error': 'roster query parameter is required'},
+                {'error': 'roster or date query parameter is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+        # If date is requested, return the modified shape
+        if date_val:
+            qs = self.get_queryset()
+            results = []
+            for a in qs:
+                results.append({
+                    'id': str(a.id),
+                    'staff_id': str(a.staff.user.id) if a.staff else None,
+                    'staff_name': a.staff.user.full_name or a.staff.user.email if a.staff else None,
+                    'staff_avatar_color': a.staff.avatar_color if a.staff else None,
+                    'shift_type': a.shift.shift_type if a.shift else None,
+                    'start_time': a.start_time.strftime('%H:%M:%S') if a.start_time else None,
+                    'end_time': a.end_time.strftime('%H:%M:%S') if a.end_time else None,
+                    'shift_template_id': str(a.shift.id) if a.shift else None
+                })
+            return Response(results)
+            
         return super().list(request, *args, **kwargs)
 
     @transaction.atomic
@@ -285,9 +375,15 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
             return Response(self.get_serializer(assignment).data)
             
         # Support drag-and-drop format: {"staffId": "...", "date": "...", "shift": "...", "rosterId": "..."}
-        staff_id = request.data.get('staffId')
-        date_str = request.data.get('date')
+        # or the new format: roster_id, staff_id, shift_template_id, shift_date, start_time, end_time, duration_hours
+        staff_id = request.data.get('staff_id') or request.data.get('staffId')
+        date_str = request.data.get('shift_date') or request.data.get('date')
         shift_type = request.data.get('shift')
+        shift_template_id = request.data.get('shift_template_id')
+        roster_id = request.data.get('roster_id') or request.data.get('rosterId')
+        start_time = request.data.get('start_time')
+        end_time = request.data.get('end_time')
+        duration_hours = request.data.get('duration_hours')
         roster_id = request.data.get('rosterId')
         
         if staff_id and date_str and shift_type:
@@ -305,9 +401,15 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
             except StaffProfile.DoesNotExist:
                 return Response({'error': 'Staff member not found'}, status=404)
                 
-            template = ShiftTemplate.objects.filter(shift_type=shift_type).first()
-            if not template:
-                return Response({'error': f'Shift template for {shift_type} not found'}, status=400)
+            if shift_template_id:
+                template = ShiftTemplate.objects.filter(id=shift_template_id).first()
+            elif shift_type:
+                template = ShiftTemplate.objects.filter(shift_type=shift_type).first()
+            else:
+                template = None
+
+            if not template and not start_time:
+                return Response({'error': f'Shift template not found'}, status=400)
                 
             from datetime import datetime
             try:
@@ -321,25 +423,70 @@ class RosterAssignmentViewSet(viewsets.ModelViewSet):
                 shift_date=target_date
             ).first()
             
-            if assignment:
-                assignment.shift = template
-                assignment.start_time = template.start_time
-                assignment.end_time = template.end_time
-                assignment.save()
-            else:
-                assignment = RosterAssignment.objects.create(
+            # Enforce validation before save
+            from .services.conflict_engine.engine import ConflictEngineService
+            from .models import ConflictStatus
+            engine = ConflictEngineService()
+            
+            # Temporarily apply values to check conflicts
+            orig_shift = assignment.shift if assignment else None
+            orig_start = assignment.start_time if assignment else None
+            orig_end = assignment.end_time if assignment else None
+            
+            if not assignment:
+                assignment = RosterAssignment(
                     roster=roster,
                     staff=staff_member,
-                    shift=template,
                     shift_date=target_date,
-                    start_time=template.start_time,
-                    end_time=template.end_time,
-                    duration_hours=8.0,
                     status='Scheduled' if roster.status == 'Published' else 'Draft'
                 )
                 
-            self._revalidate_conflicts(assignment)
-            return Response(self.get_serializer(assignment).data, status=201)
+            assignment.shift = template
+            assignment.start_time = start_time if start_time else template.start_time
+            assignment.end_time = end_time if end_time else template.end_time
+            assignment.duration_hours = duration_hours if duration_hours else 8.0
+            
+            # Save temporarily in a transaction to check conflicts and rollback if critical
+            with transaction.atomic():
+                assignment.save()
+                
+                # Check conflicts for this specific staff member
+                engine.run_for_shift(roster, target_date, template.shift_type if template else 'custom')
+                
+                # Verify if there are critical unresolved conflicts for this assignment
+                # Specifically checking for the newly generated conflicts (or updated ones)
+                critical_conflicts = Conflict.objects.filter(
+                    roster=roster,
+                    employee=staff_member,
+                    date=target_date,
+                    status=ConflictStatus.OPEN
+                ).exclude(
+                    conflict_type='Coverage'
+                )
+                
+                if critical_conflicts.exists():
+                    conflict_msgs = [c.description for c in critical_conflicts]
+                    transaction.set_rollback(True)
+                    return Response({
+                        'error': 'Conflict detected',
+                        'conflicts': conflict_msgs
+                    }, status=409)
+            
+            # If no critical conflicts, actually save
+            assignment.save()
+            engine.run_for_shift(roster, target_date, template.shift_type if template else 'custom')
+            
+            # We need to return the expected format for the frontend
+            return Response({
+                'id': str(assignment.id),
+                'staff_id': str(assignment.staff.user.id),
+                'staff_name': assignment.staff.user.full_name or assignment.staff.user.email,
+                'staff_avatar_color': assignment.staff.user.avatar_color,
+                'shift_type': assignment.shift.shift_type if assignment.shift else None,
+                'start_time': assignment.start_time.strftime('%H:%M:%S') if assignment.start_time else None,
+                'end_time': assignment.end_time.strftime('%H:%M:%S') if assignment.end_time else None,
+                'shift_template_id': str(assignment.shift.id) if assignment.shift else None
+            }, status=201)
             
         return super().create(request, *args, **kwargs)
 

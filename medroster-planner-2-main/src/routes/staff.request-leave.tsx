@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { leaveService } from "@/services";
 import type { LeaveType } from "@/types";
-import { format } from "date-fns";
+
 
 export const Route = createFileRoute("/staff/request-leave")({ component: RequestLeave });
 
@@ -34,13 +34,14 @@ function RequestLeave() {
   });
 
   const onSubmit = handleSubmit(async (data) => {
-    await leaveService.submit(data);
-    setLeaves((arr) => [...arr, {
-      id: `l${arr.length + 1}`, staffId: currentUserId, ...data,
-      status: "Pending", submittedOn: format(new Date(), "yyyy-MM-dd"),
-    }]);
-    toast.success("Leave request submitted");
-    navigate({ to: "/staff/leave-status" });
+    try {
+      const created = await leaveService.submit({ ...data, staffId: currentUserId });
+      setLeaves((arr) => [...arr, created]);
+      toast.success("Leave request submitted");
+      navigate({ to: "/staff/leave-status" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit leave request");
+    }
   });
 
   return (

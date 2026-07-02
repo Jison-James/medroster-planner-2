@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { settingsService, authService } from "@/services";
+import { staffService, authService } from "@/services";
 
 const pwdSchema = z.object({
   current: z.string().min(1, "Required"),
@@ -29,11 +29,11 @@ export function ProfileTabs({ scope = "manager" }: { scope?: "manager" | "staff"
   const { register, handleSubmit, formState: { errors }, reset } = useForm<z.infer<typeof pwdSchema>>({ resolver: zodResolver(pwdSchema) });
 
   const savePersonal = async () => {
-    await settingsService.save(info);
+    await staffService.save({ ...me, ...info });
     toast.success("Profile updated");
   };
   const savePrefs = async () => {
-    await settingsService.save(prefs);
+    // TODO: no backend endpoint for notification preferences yet — local only
     toast.success("Preferences saved");
   };
   const submitPwd = handleSubmit(async (data) => {

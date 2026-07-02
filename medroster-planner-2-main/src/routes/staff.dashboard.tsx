@@ -7,12 +7,18 @@ import { ShiftBadge, shiftMeta } from "@/components/shared/ShiftBadge";
 import { StatusBadge, statusToTone } from "@/components/shared/StatusBadge";
 import { CalendarPlus, CalendarCheck, Repeat, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
+import { getGreetingName } from "@/lib/utils";
 
 export const Route = createFileRoute("/staff/dashboard")({ component: StaffDashboard });
 
 function StaffDashboard() {
   const { roster, leaves, currentUserId, staff } = useApp();
   const me = staff.find((s) => s.id === currentUserId) ?? staff[0];
+  
+  if (!me) {
+    return <div className="p-6 text-center text-muted-foreground animate-pulse">Loading dashboard...</div>;
+  }
+
   const today = format(new Date(), "yyyy-MM-dd");
   const mine = roster.filter((r) => r.staffId === me.id).sort((a, b) => a.date.localeCompare(b.date));
   const todayShift = mine.find((r) => r.date === today);
@@ -21,7 +27,7 @@ function StaffDashboard() {
 
   return (
     <div>
-      <PageHeader title={`Welcome back, ${me.name.split(" ")[0]}`} description="Here's what's happening with your schedule." />
+      <PageHeader title={`Welcome back, ${getGreetingName(me?.name)}`} description="Here's what's happening with your schedule." />
 
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
         <Card className="rounded-2xl"><CardContent className="p-5">

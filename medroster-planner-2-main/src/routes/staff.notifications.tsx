@@ -14,11 +14,13 @@ import type { NotificationType } from "@/types";
 export const Route = createFileRoute("/staff/notifications")({ component: Notifications });
 
 const icons: Record<NotificationType, typeof Bell> = {
-  "Leave Approved": CalendarCheck,
-  "Leave Rejected": CalendarX,
-  "Shift Changed": RefreshCw,
-  "Roster Published": FileCheck2,
-  "Swap Approved": Repeat,
+  "Leave_Approved": CalendarCheck,
+  "Leave_Rejected": CalendarX,
+  "Shift_Changed": RefreshCw,
+  "Roster_Published": FileCheck2,
+  "Swap_Approved": Repeat,
+  "Swap_Rejected": Repeat,
+  "Conflict_Detected": Bell,
 };
 
 function Notifications() {
@@ -52,7 +54,7 @@ function Notifications() {
                       !n.read && "bg-primary/5")}>
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-4 w-4" /></div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2"><p className="font-medium">{n.type}</p>{!n.read && <span className="h-2 w-2 rounded-full bg-primary" />}</div>
+                      <div className="flex items-center gap-2"><p className="font-medium">{n.title}</p>{!n.read && <span className="h-2 w-2 rounded-full bg-primary" />}</div>
                       <p className="text-sm text-muted-foreground">{n.message}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">{formatDistanceToNow(new Date(n.timestamp), { addSuffix: true })}</p>
                     </div>

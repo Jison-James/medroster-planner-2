@@ -3,6 +3,8 @@ from django.db import models
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
+
 
 # ============================================================
 # ENUMS / CHOICES
@@ -396,7 +398,8 @@ def create_or_update_staff_profile(sender, instance, created, **kwargs):
             'role': ClinicalRole.NURSE,
             'status': 'Active',
             'employment_type': 'Full-time',
-            'avatar_color': '#6366f1'
+            'avatar_color': '#6366f1',
+            'department': 'General Ward'
         }
     )
     if not created_profile:
