@@ -62,10 +62,7 @@ function SettingsPage() {
             <div><p className="font-medium">Email notifications</p><p className="text-sm text-muted-foreground">Send updates by email.</p></div>
             <Switch checked={notif.email} onCheckedChange={(v) => setNotif({ ...notif, email: v })} />
           </div>
-          <div className="flex items-center justify-between rounded-xl border border-border p-3">
-            <div><p className="font-medium">In-app notifications</p><p className="text-sm text-muted-foreground">Show updates in the bell.</p></div>
-            <Switch checked={notif.inApp} onCheckedChange={(v) => setNotif({ ...notif, inApp: v })} />
-          </div>
+
           <Button onClick={() => save("Notification preferences", notif)}>Save preferences</Button>
         </CardContent></Card>
       </div>

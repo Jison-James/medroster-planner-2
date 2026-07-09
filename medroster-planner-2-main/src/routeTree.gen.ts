@@ -17,7 +17,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as StaffShiftsRouteImport } from './routes/staff.shifts'
 import { Route as StaffRequestLeaveRouteImport } from './routes/staff.request-leave'
 import { Route as StaffProfileRouteImport } from './routes/staff.profile'
-import { Route as StaffNotificationsRouteImport } from './routes/staff.notifications'
 import { Route as StaffLeaveStatusRouteImport } from './routes/staff.leave-status'
 import { Route as StaffHelpRouteImport } from './routes/staff.help'
 import { Route as StaffDashboardRouteImport } from './routes/staff.dashboard'
@@ -74,11 +73,6 @@ const StaffRequestLeaveRoute = StaffRequestLeaveRouteImport.update({
 const StaffProfileRoute = StaffProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => StaffRoute,
-} as any)
-const StaffNotificationsRoute = StaffNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
   getParentRoute: () => StaffRoute,
 } as any)
 const StaffLeaveStatusRoute = StaffLeaveStatusRouteImport.update({
@@ -190,7 +184,6 @@ export interface FileRoutesByFullPath {
   '/staff/dashboard': typeof StaffDashboardRoute
   '/staff/help': typeof StaffHelpRoute
   '/staff/leave-status': typeof StaffLeaveStatusRoute
-  '/staff/notifications': typeof StaffNotificationsRoute
   '/staff/profile': typeof StaffProfileRoute
   '/staff/request-leave': typeof StaffRequestLeaveRoute
   '/staff/shifts': typeof StaffShiftsRoute
@@ -218,7 +211,6 @@ export interface FileRoutesByTo {
   '/staff/dashboard': typeof StaffDashboardRoute
   '/staff/help': typeof StaffHelpRoute
   '/staff/leave-status': typeof StaffLeaveStatusRoute
-  '/staff/notifications': typeof StaffNotificationsRoute
   '/staff/profile': typeof StaffProfileRoute
   '/staff/request-leave': typeof StaffRequestLeaveRoute
   '/staff/shifts': typeof StaffShiftsRoute
@@ -247,7 +239,6 @@ export interface FileRoutesById {
   '/staff/dashboard': typeof StaffDashboardRoute
   '/staff/help': typeof StaffHelpRoute
   '/staff/leave-status': typeof StaffLeaveStatusRoute
-  '/staff/notifications': typeof StaffNotificationsRoute
   '/staff/profile': typeof StaffProfileRoute
   '/staff/request-leave': typeof StaffRequestLeaveRoute
   '/staff/shifts': typeof StaffShiftsRoute
@@ -277,7 +268,6 @@ export interface FileRouteTypes {
     | '/staff/dashboard'
     | '/staff/help'
     | '/staff/leave-status'
-    | '/staff/notifications'
     | '/staff/profile'
     | '/staff/request-leave'
     | '/staff/shifts'
@@ -305,7 +295,6 @@ export interface FileRouteTypes {
     | '/staff/dashboard'
     | '/staff/help'
     | '/staff/leave-status'
-    | '/staff/notifications'
     | '/staff/profile'
     | '/staff/request-leave'
     | '/staff/shifts'
@@ -333,7 +322,6 @@ export interface FileRouteTypes {
     | '/staff/dashboard'
     | '/staff/help'
     | '/staff/leave-status'
-    | '/staff/notifications'
     | '/staff/profile'
     | '/staff/request-leave'
     | '/staff/shifts'
@@ -403,13 +391,6 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/staff/profile'
       preLoaderRoute: typeof StaffProfileRouteImport
-      parentRoute: typeof StaffRoute
-    }
-    '/staff/notifications': {
-      id: '/staff/notifications'
-      path: '/notifications'
-      fullPath: '/staff/notifications'
-      preLoaderRoute: typeof StaffNotificationsRouteImport
       parentRoute: typeof StaffRoute
     }
     '/staff/leave-status': {
@@ -574,7 +555,6 @@ interface StaffRouteChildren {
   StaffDashboardRoute: typeof StaffDashboardRoute
   StaffHelpRoute: typeof StaffHelpRoute
   StaffLeaveStatusRoute: typeof StaffLeaveStatusRoute
-  StaffNotificationsRoute: typeof StaffNotificationsRoute
   StaffProfileRoute: typeof StaffProfileRoute
   StaffRequestLeaveRoute: typeof StaffRequestLeaveRoute
   StaffShiftsRoute: typeof StaffShiftsRoute
@@ -585,7 +565,6 @@ const StaffRouteChildren: StaffRouteChildren = {
   StaffDashboardRoute: StaffDashboardRoute,
   StaffHelpRoute: StaffHelpRoute,
   StaffLeaveStatusRoute: StaffLeaveStatusRoute,
-  StaffNotificationsRoute: StaffNotificationsRoute,
   StaffProfileRoute: StaffProfileRoute,
   StaffRequestLeaveRoute: StaffRequestLeaveRoute,
   StaffShiftsRoute: StaffShiftsRoute,

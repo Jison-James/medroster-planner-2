@@ -2,8 +2,8 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, CalendarRange, ClipboardList, Settings as SettingsIcon,
   AlertTriangle, Repeat, CalendarCheck, CalendarPlus, Sparkles,
-  Sliders, ClipboardCheck, HelpCircle, UserCog, ShieldCheck, Bell, User,
-  LogOut, Menu, X, ChevronLeft, ChevronRight, Heart, Sun, Moon,
+  Sliders, ClipboardCheck, HelpCircle, UserCog, ShieldCheck, User,
+  LogOut, Menu, X, ChevronLeft, ChevronRight, Heart,
 } from "lucide-react";
 import { useApp } from "@/lib/app-context";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
+
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState, useEffect, type ReactNode } from "react";
 
@@ -60,7 +60,6 @@ const staffNav: NavGroup[] = [
     { label: "Leave Status", to: "/staff/leave-status", icon: ShieldCheck },
   ]},
   { label: "Account", items: [
-    { label: "Notifications", to: "/staff/notifications", icon: Bell },
     { label: "Profile", to: "/staff/profile", icon: User },
   ]},
   { label: "Support", items: [
@@ -125,7 +124,7 @@ function Brand({ collapsed }: { collapsed: boolean }) {
 }
 
 export function AppShell({ role, children }: { role: Role; children: ReactNode }) {
-  const { setRole, notifications, staff, currentUserId } = useApp();
+  const { setRole, staff, currentUserId } = useApp();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const nav = role === "manager" ? managerNav : staffNav;
@@ -143,7 +142,7 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  const unread = notifications.filter((n) => !n.read).length;
+
   const me = staff.find((s) => s.id === currentUserId) ?? staff[0] ?? { name: 'Loading...', role: 'Loading', avatarColor: '#6366f1' };
 
   const handleLogout = () => {
@@ -197,24 +196,8 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
-              aria-label="Toggle theme"
-            >
-              {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-            </Button>
-            <Button asChild variant="ghost" size="icon" className="relative" aria-label="Notifications">
-              <Link to={role === "staff" ? "/staff/notifications" : "/manager/dashboard"}>
-                <Bell className="h-5 w-5" />
-                {unread > 0 && (
-                  <Badge className="absolute -right-0.5 -top-0.5 h-5 min-w-5 rounded-full bg-destructive p-0 text-[10px] text-destructive-foreground">
-                    {unread}
-                  </Badge>
-                )}
-              </Link>
-            </Button>
+
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 rounded-full p-1 pr-3 hover:bg-muted">

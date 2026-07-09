@@ -93,7 +93,6 @@ export function ProfileTabs({ scope = "manager" }: { scope?: "manager" | "staff"
         <Card className="rounded-2xl"><CardContent className="p-6 space-y-4">
           {[
             { key: "email" as const, label: "Email notifications", desc: "Updates about your shifts and requests." },
-            { key: "inApp" as const, label: "In-app notifications", desc: "See the latest activity in the bell." },
             { key: "weeklyDigest" as const, label: "Weekly digest", desc: "A summary of your week, every Monday." },
           ].map((p) => (
             <div key={p.key} className="flex items-center justify-between rounded-xl border border-border p-3">
