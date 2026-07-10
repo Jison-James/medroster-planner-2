@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Search, UserPlus, Trash2, Users } from "lucide-react";
+import { Search, UserPlus, Trash2, Users, Database } from "lucide-react";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,6 +37,41 @@ function StaffMgmt() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [openAdd, setOpenAdd] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const generateDummyData = async () => {
+    try {
+      setIsSeeding(true);
+      const dummyData = [
+        { name: "Dr. Sarah Jenkins", email: `sarah${Date.now()}@hospital.com`, phone: "555-0101", role: "Doctor", department: "Cardiology", employmentType: "Full-time" },
+        { name: "Dr. Michael Chen", email: `michael${Date.now()}@hospital.com`, phone: "555-0102", role: "Doctor", department: "Neurology", employmentType: "Full-time" },
+        { name: "Nurse Emily Davis", email: `emily${Date.now()}@hospital.com`, phone: "555-0103", role: "Nurse", department: "Pediatrics", employmentType: "Full-time" },
+        { name: "Nurse James Wilson", email: `james${Date.now()}@hospital.com`, phone: "555-0104", role: "Nurse", department: "General Ward", employmentType: "Part-time" },
+        { name: "Tech Robert Taylor", email: `robert${Date.now()}@hospital.com`, phone: "555-0105", role: "Support Staff", department: "Radiology", employmentType: "Full-time" },
+      ];
+      
+      const newStaff = [];
+      for (const d of dummyData) {
+        const member: Staff = {
+          id: `s${Date.now()}${Math.random().toString().slice(2,6)}`,
+          employeeId: `EMP-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`,
+          name: d.name, email: d.email, phone: d.phone,
+          role: d.role as any, department: d.department,
+          status: "Active", joinedOn: new Date().toISOString().slice(0, 10),
+          employmentType: d.employmentType as any, availableDays: ["Mon","Tue","Wed","Thu","Fri"],
+          preferredShift: "morning", preferredDaysOff: ["Sat","Sun"], avatarColor: "#4F86C6",
+        };
+        const saved = await staffService.save(member);
+        newStaff.push(saved);
+      }
+      setStaff(arr => [...newStaff, ...arr]);
+      toast.success("Added 5 dummy staff members");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to add dummy data");
+    } finally {
+      setIsSeeding(false);
+    }
+  };
 
   const filtered = staff.filter((s) =>
     (roleFilter === "all" || s.role === roleFilter) &&
@@ -80,9 +115,14 @@ function StaffMgmt() {
         title="Staff management"
         description="View, edit, and onboard the people who make your hospital run."
         actions={
-          <Sheet open={openAdd} onOpenChange={setOpenAdd}>
-            <SheetTrigger asChild><Button><UserPlus className="mr-2 h-4 w-4" />Add staff</Button></SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={generateDummyData} disabled={isSeeding}>
+              <Database className="mr-2 h-4 w-4" />
+              {isSeeding ? "Seeding..." : "Seed Data"}
+            </Button>
+            <Sheet open={openAdd} onOpenChange={setOpenAdd}>
+              <SheetTrigger asChild><Button><UserPlus className="mr-2 h-4 w-4" />Add staff</Button></SheetTrigger>
+              <SheetContent className="w-full sm:max-w-md overflow-y-auto">
               <SheetHeader>
                 <SheetTitle>Add a staff member</SheetTitle>
                 <SheetDescription>This goes straight onto your roster.</SheetDescription>
@@ -127,6 +167,7 @@ function StaffMgmt() {
               </form>
             </SheetContent>
           </Sheet>
+          </div>
         }
       />
 
